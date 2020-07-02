@@ -25,9 +25,9 @@
 #include <string>
 
 #include "GHOST_Types.h"
-#include "GHOST_Xr_intern.h"
 #include "GHOST_XrException.h"
 #include "GHOST_XrSession.h"
+#include "GHOST_Xr_intern.h"
 
 #include "GHOST_XrContext.h"
 
@@ -126,6 +126,7 @@ void GHOST_XrContext::storeInstanceProperties()
   const std::map<std::string, GHOST_TXrOpenXRRuntimeID> runtime_map = {
       {"Monado(XRT) by Collabora et al", OPENXR_RUNTIME_MONADO},
       {"Oculus", OPENXR_RUNTIME_OCULUS},
+      {"SteamVR/OpenXR", OPENXR_RUNTIME_STEAMVR},
       {"Windows Mixed Reality Runtime", OPENXR_RUNTIME_WMR}};
   decltype(runtime_map)::const_iterator runtime_map_iter;
 
@@ -465,7 +466,14 @@ void GHOST_XrContext::startSession(const GHOST_XrSessionBeginInfo *begin_info)
 
 void GHOST_XrContext::endSession()
 {
-  m_session->requestEnd();
+  if (m_session) {
+    if (m_session->isRunning()) {
+      m_session->requestEnd();
+    }
+    else {
+      m_session = nullptr;
+    }
+  }
 }
 
 bool GHOST_XrContext::isSessionRunning() const
@@ -510,6 +518,13 @@ void GHOST_XrContext::setGraphicsContextBindFuncs(GHOST_XrGraphicsContextBindFn 
 void GHOST_XrContext::setDrawViewFunc(GHOST_XrDrawViewFn draw_view_fn)
 {
   m_custom_funcs.draw_view_fn = draw_view_fn;
+}
+
+bool GHOST_XrContext::needsUpsideDownDrawing() const
+{
+  /* Must only be called after the session was started */
+  assert(m_session);
+  return m_session->needsUpsideDownDrawing();
 }
 
 /** \} */ /* Public Accessors and Mutators */

@@ -39,17 +39,33 @@
 
 #include "RNA_access.h"
 
-#include "ED_screen.h"
-
 #include "UI_interface.h"
 
 #include "BLT_translation.h"
 
 #include "transform.h"
+#include "transform_convert.h"
 #include "transform_snap.h"
 
 /* Own include. */
 #include "transform_mode.h"
+
+int transform_mode_really_used(bContext *C, int mode)
+{
+  if (mode == TFM_BONESIZE) {
+    Object *ob = CTX_data_active_object(C);
+    BLI_assert(ob);
+    if (ob->type != OB_ARMATURE) {
+      return TFM_RESIZE;
+    }
+    bArmature *arm = ob->data;
+    if (arm->drawtype == ARM_ENVELOPE) {
+      return TFM_BONE_ENVELOPE_DIST;
+    }
+  }
+
+  return mode;
+}
 
 bool transdata_check_local_center(TransInfo *t, short around)
 {
@@ -61,7 +77,21 @@ bool transdata_check_local_center(TransInfo *t, short around)
            (t->options & (CTX_MOVIECLIP | CTX_MASK | CTX_PAINT_CURVE))));
 }
 
-/* ************************** TRANSFORM LOCKS **************************** */
+/* Informs if the mode can be switched during modal. */
+bool transform_mode_is_changeable(const int mode)
+{
+  return ELEM(mode,
+              TFM_ROTATION,
+              TFM_RESIZE,
+              TFM_TRACKBALL,
+              TFM_TRANSLATION,
+              TFM_EDGE_SLIDE,
+              TFM_VERT_SLIDE);
+}
+
+/* -------------------------------------------------------------------- */
+/** \name Transform Locks
+ * \{ */
 
 void protectedTransBits(short protectflag, float vec[3])
 {
@@ -211,7 +241,11 @@ static void protectedSizeBits(short protectflag, float size[3])
   }
 }
 
-/* ******************* TRANSFORM LIMITS ********************** */
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Transform Limits
+ * \{ */
 
 void constraintTransLim(TransInfo *t, TransData *td)
 {
@@ -523,7 +557,7 @@ void headerRotation(TransInfo *t, char str[UI_MAX_DRAW_STR], float final)
 void postInputRotation(TransInfo *t, float values[3])
 {
   float axis_final[3];
-  copy_v3_v3(axis_final, t->orient_matrix[t->orient_axis]);
+  copy_v3_v3(axis_final, t->spacemtx[t->orient_axis]);
   if ((t->con.mode & CON_APPLY) && t->con.applyRot) {
     t->con.applyRot(t, NULL, NULL, axis_final, values);
   }
@@ -919,7 +953,7 @@ void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, float ma
   if (td->ext && td->ext->size) {
     float fsize[3];
 
-    if ((t->options & CTX_SCULPT) || t->flag & (T_OBJECT | T_TEXTURE | T_POSE)) {
+    if (ELEM(t->data_type, TC_SCULPT, TC_OBJECT, TC_OBJECT_TEXSPACE, TC_POSE)) {
       float obsizemat[3][3];
       /* Reorient the size mat to fit the oriented object. */
       mul_m3_m3m3(obsizemat, tmat, td->axismtx);
@@ -1022,21 +1056,21 @@ short getAnimEdit_SnapMode(TransInfo *t)
   short autosnap = SACTSNAP_OFF;
 
   if (t->spacetype == SPACE_ACTION) {
-    SpaceAction *saction = (SpaceAction *)t->sa->spacedata.first;
+    SpaceAction *saction = (SpaceAction *)t->area->spacedata.first;
 
     if (saction) {
       autosnap = saction->autosnap;
     }
   }
   else if (t->spacetype == SPACE_GRAPH) {
-    SpaceGraph *sipo = (SpaceGraph *)t->sa->spacedata.first;
+    SpaceGraph *sipo = (SpaceGraph *)t->area->spacedata.first;
 
     if (sipo) {
       autosnap = sipo->autosnap;
     }
   }
   else if (t->spacetype == SPACE_NLA) {
-    SpaceNla *snla = (SpaceNla *)t->sa->spacedata.first;
+    SpaceNla *snla = (SpaceNla *)t->area->spacedata.first;
 
     if (snla) {
       autosnap = snla->autosnap;
@@ -1104,9 +1138,7 @@ void doAnimEdit_SnapFrame(
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/* Transform Mode API */
-
-/** \name Transform Frame Utils
+/** \name Transform Mode Initialization
  * \{ */
 
 void transform_mode_init(TransInfo *t, wmOperator *op, const int mode)
@@ -1159,25 +1191,12 @@ void transform_mode_init(TransInfo *t, wmOperator *op, const int mode)
     case TFM_CREASE:
       initCrease(t);
       break;
-    case TFM_BONESIZE: { /* used for both B-Bone width (bonesize) as for deform-dist (envelope) */
-      /* Note: we have to pick one, use the active object. */
-      TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_OK(t);
-      bArmature *arm = tc->poseobj->data;
-      if (arm->drawtype == ARM_ENVELOPE) {
-        initBoneEnvelope(t);
-        t->mode = TFM_BONE_ENVELOPE_DIST;
-      }
-      else {
-        initBoneSize(t);
-      }
+    case TFM_BONESIZE:
+      initBoneSize(t);
       break;
-    }
     case TFM_BONE_ENVELOPE:
-      initBoneEnvelope(t);
-      break;
     case TFM_BONE_ENVELOPE_DIST:
       initBoneEnvelope(t);
-      t->mode = TFM_BONE_ENVELOPE_DIST;
       break;
     case TFM_EDGE_SLIDE:
     case TFM_VERT_SLIDE: {
@@ -1250,6 +1269,12 @@ void transform_mode_init(TransInfo *t, wmOperator *op, const int mode)
     case TFM_GPENCIL_OPACITY:
       initGPOpacity(t);
       break;
+  }
+
+  if (t->data_type == TC_MESH_VERTS) {
+    /* Init Custom Data correction.
+     * Ideally this should be called when creating the TransData. */
+    trans_mesh_customdata_correction_init(t);
   }
 
   /* TODO(germano): Some of these operations change the `t->mode`.

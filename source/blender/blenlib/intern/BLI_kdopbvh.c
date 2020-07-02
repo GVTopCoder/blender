@@ -42,13 +42,13 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_alloca.h"
-#include "BLI_stack.h"
+#include "BLI_heap_simple.h"
 #include "BLI_kdopbvh.h"
 #include "BLI_math.h"
+#include "BLI_stack.h"
 #include "BLI_task.h"
-#include "BLI_heap_simple.h"
+#include "BLI_utildefines.h"
 
 #include "BLI_strict_flags.h"
 
@@ -719,10 +719,10 @@ static void non_recursive_bvh_div_nodes_task_cb(void *__restrict userdata,
   refit_kdop_hull(data->tree, parent, parent_leafs_begin, parent_leafs_end);
   split_axis = get_largest_axis(parent->bv);
 
-  /* Save split axis (this can be used on raytracing to speedup the query time) */
+  /* Save split axis (this can be used on ray-tracing to speedup the query time) */
   parent->main_axis = split_axis / 2;
 
-  /* Split the childs along the split_axis, note: its not needed to sort the whole leafs array
+  /* Split the children along the split_axis, note: its not needed to sort the whole leafs array
    * Only to assure that the elements are partitioned on a way that each child takes the elements
    * it would take in case the whole array was sorted.
    * Split_leafs takes care of that "sort" problem. */
@@ -769,7 +769,7 @@ static void non_recursive_bvh_div_nodes_task_cb(void *__restrict userdata,
  * This functions builds an optimal implicit tree from the given leafs.
  * Where optimal stands for:
  * - The resulting tree will have the smallest number of branches;
- * - At most only one branch will have NULL childs;
+ * - At most only one branch will have NULL children;
  * - All leafs will be stored at level N or N+1.
  *
  * This function creates an implicit tree on branches_array,
@@ -777,7 +777,7 @@ static void non_recursive_bvh_div_nodes_task_cb(void *__restrict userdata,
  *
  * The tree is built per depth levels. First branches at depth 1.. then branches at depth 2.. etc..
  * The reason is that we can build level N+1 from level N without any data dependencies..
- * thus it allows to use multithread building.
+ * thus it allows to use multi-thread building.
  *
  * To archive this is necessary to find how much leafs are accessible from a certain branch,
  * #BVHBuildHelper, #implicit_needed_branches and #implicit_leafs_index
@@ -1032,12 +1032,14 @@ bool BLI_bvhtree_update_node(
   return true;
 }
 
-/* call BLI_bvhtree_update_node() first for every node/point/triangle */
+/**
+ * Call #BLI_bvhtree_update_node() first for every node/point/triangle.
+ */
 void BLI_bvhtree_update_tree(BVHTree *tree)
 {
   /* Update bottom=>top
-   * TRICKY: the way we build the tree all the childs have an index greater than the parent
-   * This allows us todo a bottom up update by starting on the bigger numbered branch */
+   * TRICKY: the way we build the tree all the children have an index greater than the parent
+   * This allows us todo a bottom up update by starting on the bigger numbered branch. */
 
   BVHNode **root = tree->nodes + tree->totleaf;
   BVHNode **index = tree->nodes + tree->totleaf + tree->totbranch - 1;
@@ -2309,7 +2311,7 @@ static bool bvhtree_walk_dfs_recursive(BVHTree_WalkData *walk_data, const BVHNod
 }
 
 /**
- * This is a generic function to perform a depth first search on the BVHTree
+ * This is a generic function to perform a depth first search on the #BVHTree
  * where the search order and nodes traversed depend on callbacks passed in.
  *
  * \param tree: Tree to walk.
@@ -2317,7 +2319,7 @@ static bool bvhtree_walk_dfs_recursive(BVHTree_WalkData *walk_data, const BVHNod
  * \param walk_leaf_cb: Callback to test leaf nodes, callback must store its own result,
  * returning false exits early.
  * \param walk_order_cb: Callback that indicates which direction to search,
- * either from the node with the lower or higher k-dop axis value.
+ * either from the node with the lower or higher K-DOP axis value.
  * \param userdata: Argument passed to all callbacks.
  */
 void BLI_bvhtree_walk_dfs(BVHTree *tree,

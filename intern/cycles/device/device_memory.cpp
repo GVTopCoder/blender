@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "device/device.h"
 #include "device/device_memory.h"
+#include "device/device.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -123,6 +123,11 @@ void device_memory::restore_device()
   device = original_device;
   device_size = original_device_size;
   device_pointer = original_device_ptr;
+}
+
+bool device_memory::is_resident(Device *sub_device) const
+{
+  return device->is_resident(device_pointer, sub_device);
 }
 
 /* Device Sub Ptr */

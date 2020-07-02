@@ -25,21 +25,21 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_string.h"
 #include "BLI_string_utils.h"
+#include "BLI_utildefines.h"
 
-#include "DNA_scene_types.h"
 #include "DNA_anim_types.h"
+#include "DNA_scene_types.h"
 
-#include "ED_keyframing.h"
 #include "ED_keyframes_edit.h"
+#include "ED_keyframing.h"
 
-#include "BKE_animsys.h"
+#include "BKE_anim_data.h"
 #include "BKE_context.h"
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
-#include "BKE_idcode.h"
+#include "BKE_idtype.h"
 #include "BKE_lib_id.h"
 #include "BKE_report.h"
 
@@ -49,8 +49,8 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
-#include "bpy_rna.h"
 #include "bpy_capi_utils.h"
+#include "bpy_rna.h"
 #include "bpy_rna_anim.h"
 
 #include "../generic/python_utildefines.h"
@@ -354,7 +354,7 @@ PyObject *pyrna_struct_keyframe_insert(BPy_StructRNA *self, PyObject *args, PyOb
 
     if (prop) {
       NlaStrip *strip = ptr.data;
-      FCurve *fcu = list_find_fcurve(&strip->fcurves, RNA_property_identifier(prop), index);
+      FCurve *fcu = BKE_fcurve_find(&strip->fcurves, RNA_property_identifier(prop), index);
 
       result = insert_keyframe_direct(&reports, ptr, prop, fcu, cfra, keytype, NULL, options);
     }
@@ -462,7 +462,7 @@ PyObject *pyrna_struct_keyframe_delete(BPy_StructRNA *self, PyObject *args, PyOb
     if (prop) {
       ID *id = ptr.owner_id;
       NlaStrip *strip = ptr.data;
-      FCurve *fcu = list_find_fcurve(&strip->fcurves, RNA_property_identifier(prop), index);
+      FCurve *fcu = BKE_fcurve_find(&strip->fcurves, RNA_property_identifier(prop), index);
 
       /* NOTE: This should be true, or else we wouldn't be able to get here. */
       BLI_assert(fcu != NULL);
@@ -473,7 +473,7 @@ PyObject *pyrna_struct_keyframe_delete(BPy_StructRNA *self, PyObject *args, PyOb
             RPT_WARNING,
             "Not deleting keyframe for locked F-Curve for NLA Strip influence on %s - %s '%s'",
             strip->name,
-            BKE_idcode_to_name(GS(id->name)),
+            BKE_idtype_idcode_to_name(GS(id->name)),
             id->name + 2);
       }
       else {
@@ -577,13 +577,13 @@ PyObject *pyrna_struct_driver_add(BPy_StructRNA *self, PyObject *args)
       if (index == -1) { /* all, use a list */
         int i = 0;
         ret = PyList_New(0);
-        while ((fcu = list_find_fcurve(&adt->drivers, path_full, i++))) {
+        while ((fcu = BKE_fcurve_find(&adt->drivers, path_full, i++))) {
           RNA_pointer_create(id, &RNA_FCurve, fcu, &tptr);
           PyList_APPEND(ret, pyrna_struct_CreatePyObject(&tptr));
         }
       }
       else {
-        fcu = list_find_fcurve(&adt->drivers, path_full, index);
+        fcu = BKE_fcurve_find(&adt->drivers, path_full, index);
         RNA_pointer_create(id, &RNA_FCurve, fcu, &tptr);
         ret = pyrna_struct_CreatePyObject(&tptr);
       }

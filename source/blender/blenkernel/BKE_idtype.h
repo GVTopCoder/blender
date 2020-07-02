@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 struct ID;
+struct LibraryForeachIDData;
 struct Main;
 
 /** IDTypeInfo.flags. */
@@ -59,6 +60,8 @@ typedef void (*IDTypeFreeDataFunction)(struct ID *id);
 
 /** \param flag: See BKE_lib_id.h's LIB_ID_MAKELOCAL_... flags. */
 typedef void (*IDTypeMakeLocalFunction)(struct Main *bmain, struct ID *id, const int flags);
+
+typedef void (*IDTypeForeachIDFunction)(struct ID *id, struct LibraryForeachIDData *data);
 
 typedef struct IDTypeInfo {
   /* ********** General IDType data. ********** */
@@ -121,6 +124,12 @@ typedef struct IDTypeInfo {
    * `BKE_lib_id_make_local_generic()` is enough.
    */
   IDTypeMakeLocalFunction make_local;
+
+  /**
+   * Called by `BKE_library_foreach_ID_link()` to apply a callback over all other ID usages (ID
+   * pointers) of given data-block.
+   */
+  IDTypeForeachIDFunction foreach_id;
 } IDTypeInfo;
 
 /* ********** Declaration of each IDTypeInfo. ********** */
@@ -165,6 +174,9 @@ extern IDTypeInfo IDType_ID_LP;
 extern IDTypeInfo IDType_ID_HA;
 extern IDTypeInfo IDType_ID_PT;
 extern IDTypeInfo IDType_ID_VO;
+extern IDTypeInfo IDType_ID_SIM;
+
+extern IDTypeInfo IDType_ID_LINK_PLACEHOLDER;
 
 /* ********** Helpers/Utils API. ********** */
 
@@ -174,6 +186,22 @@ void BKE_idtype_init(void);
 /* General helpers. */
 const struct IDTypeInfo *BKE_idtype_get_info_from_idcode(const short id_code);
 const struct IDTypeInfo *BKE_idtype_get_info_from_id(const struct ID *id);
+
+const char *BKE_idtype_idcode_to_name(const short idcode);
+const char *BKE_idtype_idcode_to_name_plural(const short idcode);
+const char *BKE_idtype_idcode_to_translation_context(const short idcode);
+bool BKE_idtype_idcode_is_linkable(const short idcode);
+bool BKE_idtype_idcode_is_valid(const short idcode);
+
+short BKE_idtype_idcode_from_name(const char *idtype_name);
+
+uint64_t BKE_idtype_idcode_to_idfilter(const short idcode);
+short BKE_idtype_idcode_from_idfilter(const uint64_t idfilter);
+
+int BKE_idtype_idcode_to_index(const short idcode);
+short BKE_idtype_idcode_from_index(const int index);
+
+short BKE_idtype_idcode_iter_step(int *index);
 
 #ifdef __cplusplus
 }

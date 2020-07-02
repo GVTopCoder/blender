@@ -21,41 +21,41 @@
  * \ingroup openexr
  */
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <algorithm>
+#include <errno.h>
+#include <fstream>
+#include <iostream>
+#include <set>
 #include <stddef.h>
 #include <stdexcept>
-#include <fstream>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string>
-#include <set>
-#include <errno.h>
-#include <algorithm>
-#include <iostream>
 
-#include <half.h>
 #include <Iex.h>
-#include <ImfVersion.h>
 #include <ImathBox.h>
 #include <ImfArray.h>
-#include <ImfIO.h>
 #include <ImfChannelList.h>
-#include <ImfPixelType.h>
-#include <ImfInputFile.h>
-#include <ImfOutputFile.h>
 #include <ImfCompression.h>
 #include <ImfCompressionAttribute.h>
-#include <ImfStringAttribute.h>
+#include <ImfIO.h>
+#include <ImfInputFile.h>
+#include <ImfOutputFile.h>
+#include <ImfPixelType.h>
 #include <ImfStandardAttributes.h>
+#include <ImfStringAttribute.h>
+#include <ImfVersion.h>
+#include <half.h>
 
 /* multiview/multipart */
-#include <ImfMultiView.h>
-#include <ImfMultiPartInputFile.h>
 #include <ImfInputPart.h>
-#include <ImfOutputPart.h>
+#include <ImfMultiPartInputFile.h>
 #include <ImfMultiPartOutputFile.h>
-#include <ImfTiledOutputPart.h>
-#include <ImfPartType.h>
+#include <ImfMultiView.h>
+#include <ImfOutputPart.h>
 #include <ImfPartHelper.h>
+#include <ImfPartType.h>
+#include <ImfTiledOutputPart.h>
 
 #include "DNA_scene_types.h" /* For OpenEXR compression constants */
 
@@ -75,7 +75,7 @@ _CRTIMP void __cdecl _invalid_parameter_noinfo(void)
 {
 }
 #endif
-
+}
 #include "BLI_blenlib.h"
 #include "BLI_math_color.h"
 #include "BLI_threads.h"
@@ -83,18 +83,14 @@ _CRTIMP void __cdecl _invalid_parameter_noinfo(void)
 #include "BKE_idprop.h"
 #include "BKE_image.h"
 
-#include "IMB_imbuf_types.h"
-#include "IMB_imbuf.h"
 #include "IMB_allocimbuf.h"
+#include "IMB_colormanagement.h"
+#include "IMB_colormanagement_intern.h"
+#include "IMB_imbuf.h"
+#include "IMB_imbuf_types.h"
 #include "IMB_metadata.h"
 
 #include "openexr_multi.h"
-}
-
-extern "C" {
-#include "IMB_colormanagement.h"
-#include "IMB_colormanagement_intern.h"
-}
 
 using namespace Imf;
 using namespace Imath;
@@ -394,7 +390,8 @@ static void openexr_header_metadata(Header *header, struct ImBuf *ibuf)
   }
 
   if (ibuf->ppm[0] > 0.0) {
-    addXDensity(*header, ibuf->ppm[0] / 39.3700787); /* 1 meter = 39.3700787 inches */
+    /* Convert meters to inches. */
+    addXDensity(*header, ibuf->ppm[0] * 0.0254);
   }
 }
 
@@ -1602,8 +1599,8 @@ static ExrHandle *imb_exr_begin_read_mem(IStream &file_stream,
   for (lay = (ExrLayer *)data->layers.first; lay; lay = lay->next) {
     for (pass = (ExrPass *)lay->passes.first; pass; pass = pass->next) {
       if (pass->totchan) {
-        pass->rect = (float *)MEM_mapallocN(width * height * pass->totchan * sizeof(float),
-                                            "pass rect");
+        pass->rect = (float *)MEM_callocN(width * height * pass->totchan * sizeof(float),
+                                          "pass rect");
         if (pass->totchan == 1) {
           echan = pass->chan[0];
           echan->rect = pass->rect;
@@ -1924,7 +1921,8 @@ struct ImBuf *imb_load_openexr(const unsigned char *mem,
       ibuf->flags |= exr_is_half_float(*file) ? IB_halffloat : 0;
 
       if (hasXDensity(file->header(0))) {
-        ibuf->ppm[0] = xDensity(file->header(0)) * 39.3700787f;
+        /* Convert inches to meters. */
+        ibuf->ppm[0] = (double)xDensity(file->header(0)) / 0.0254;
         ibuf->ppm[1] = ibuf->ppm[0] * (double)file->header(0).pixelAspectRatio();
       }
 
@@ -1938,12 +1936,12 @@ struct ImBuf *imb_load_openexr(const unsigned char *mem,
 
           IMB_metadata_ensure(&ibuf->metadata);
           for (iter = header.begin(); iter != header.end(); iter++) {
-            const StringAttribute *attrib = file->header(0).findTypedAttribute<StringAttribute>(
+            const StringAttribute *attr = file->header(0).findTypedAttribute<StringAttribute>(
                 iter.name());
 
             /* not all attributes are string attributes so we might get some NULLs here */
-            if (attrib) {
-              IMB_metadata_set_field(ibuf->metadata, iter.name(), attrib->value().c_str());
+            if (attr) {
+              IMB_metadata_set_field(ibuf->metadata, iter.name(), attr->value().c_str());
               ibuf->flags |= IB_metadata;
             }
           }

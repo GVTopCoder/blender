@@ -118,7 +118,14 @@ typedef struct BlenderDefRNA {
   ListBase structs;
   ListBase allocs;
   struct StructRNA *laststruct;
-  int error, silent, preprocess, verify, animate;
+  bool error;
+  bool silent;
+  bool preprocess;
+  bool verify;
+  bool animate;
+  /** Whether RNA properties defined should be overridable or not by default. */
+  bool make_overridable;
+
   /* Keep last. */
 #ifndef RNA_RUNTIME
   struct {
@@ -185,6 +192,7 @@ void RNA_def_render(struct BlenderRNA *brna);
 void RNA_def_rigidbody(struct BlenderRNA *brna);
 void RNA_def_rna(struct BlenderRNA *brna);
 void RNA_def_scene(struct BlenderRNA *brna);
+void RNA_def_simulation(struct BlenderRNA *brna);
 void RNA_def_view_layer(struct BlenderRNA *brna);
 void RNA_def_screen(struct BlenderRNA *brna);
 void RNA_def_sculpt_paint(struct BlenderRNA *brna);
@@ -449,6 +457,7 @@ void RNA_def_main_lightprobes(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_hairs(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_pointclouds(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_volumes(BlenderRNA *brna, PropertyRNA *cprop);
+void RNA_def_main_simulations(BlenderRNA *brna, PropertyRNA *cprop);
 
 /* ID Properties */
 
@@ -489,6 +498,7 @@ int rna_property_override_diff_default(struct Main *bmain,
                                        const int mode,
                                        struct IDOverrideLibrary *override,
                                        const char *rna_path,
+                                       const size_t rna_path_len,
                                        const int flags,
                                        bool *r_override_changed);
 

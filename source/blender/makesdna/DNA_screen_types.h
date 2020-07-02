@@ -26,8 +26,8 @@
 
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
-#include "DNA_view2d_types.h"
 #include "DNA_vec_types.h"
+#include "DNA_view2d_types.h"
 
 #include "DNA_ID.h"
 
@@ -41,6 +41,7 @@ struct uiLayout;
 struct wmDrawBuffer;
 struct wmTimer;
 struct wmTooltipState;
+struct PointerRNA;
 
 /* TODO Doing this is quite ugly :)
  * Once the top-bar is merged bScreen should be refactored to use ScrAreaMap. */
@@ -132,7 +133,18 @@ typedef struct ScrAreaMap {
 typedef struct Panel_Runtime {
   /* Applied to Panel.ofsx, but saved separately so we can track changes between redraws. */
   int region_ofsx;
-  char _pad[4];
+
+  /* For instanced panels: Index of the list item the panel corresponds to. */
+  int list_index;
+
+  /**
+   * Pointer for storing which data the panel corresponds to.
+   * Useful when there can be multiple instances of the same panel type.
+   *
+   * \note A panel and its sub-panels share the same custom data pointer.
+   * This avoids freeing the same pointer twice when panels are removed.
+   */
+  struct PointerRNA *custom_data_ptr;
 } Panel_Runtime;
 
 /** The part from uiBlock that needs saved in file. */
@@ -306,8 +318,8 @@ enum GlobalAreaFlag {
 };
 
 typedef enum GlobalAreaAlign {
-  GLOBAL_AREA_ALIGN_TOP,
-  GLOBAL_AREA_ALIGN_BOTTOM,
+  GLOBAL_AREA_ALIGN_TOP = 0,
+  GLOBAL_AREA_ALIGN_BOTTOM = 1,
 } GlobalAreaAlign;
 
 typedef struct ScrArea_Runtime {
@@ -425,7 +437,7 @@ typedef struct ARegion {
   /** Private, cached notifier events. */
   short do_draw;
   /** Private, cached notifier events. */
-  short do_draw_overlay;
+  short do_draw_paintcursor;
   /** Private, set for indicate drawing overlapped. */
   short overlap;
   /** Temporary copy of flag settings for clean fullscreen. */
@@ -531,6 +543,8 @@ enum {
   PNL_OVERLAP = (1 << 4),
   PNL_PIN = (1 << 5),
   PNL_POPOVER = (1 << 6),
+  /** The panel has been drag-drop reordered and the instanced panel list needs to be rebuilt. */
+  PNL_INSTANCED_LIST_ORDER_CHANGED = (1 << 7),
 };
 
 /** #Panel.snap - for snapping to screen edges */
@@ -543,9 +557,17 @@ enum {
 /* #define PNL_SNAP_DIST        9.0 */
 
 /* paneltype flag */
-#define PNL_DEFAULT_CLOSED 1
-#define PNL_NO_HEADER 2
-#define PNL_LAYOUT_VERT_BAR 4
+enum {
+  PNL_DEFAULT_CLOSED = (1 << 0),
+  PNL_NO_HEADER = (1 << 1),
+  /** Makes buttons in the header shrink/stretch to fill full layout width. */
+  PNL_LAYOUT_HEADER_EXPAND = (1 << 2),
+  PNL_LAYOUT_VERT_BAR = (1 << 3),
+  /** This panel type represents data external to the UI. */
+  PNL_INSTANCED = (1 << 4),
+  /** Draw panel like a box widget. */
+  PNL_DRAW_BOX = (1 << 6),
+};
 
 /* Fallback panel category (only for old scripts which need updating) */
 #define PNL_CATEGORY_FALLBACK "Misc"
@@ -597,7 +619,7 @@ enum {
 
 /* regiontype, first two are the default set */
 /* Do NOT change order, append on end. Types are hardcoded needed */
-enum {
+typedef enum eRegionType {
   RGN_TYPE_WINDOW = 0,
   RGN_TYPE_HEADER = 1,
   RGN_TYPE_CHANNELS = 2,
@@ -613,7 +635,7 @@ enum {
   RGN_TYPE_EXECUTE = 10,
   RGN_TYPE_FOOTER = 11,
   RGN_TYPE_TOOL_HEADER = 12,
-};
+} eRegionType;
 /* use for function args */
 #define RGN_TYPE_ANY -1
 

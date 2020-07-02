@@ -21,8 +21,8 @@
 
 #include <Python.h>
 
-#include "../generic/python_utildefines.h"
 #include "../generic/py_capi_utils.h"
+#include "../generic/python_utildefines.h"
 #include "../mathutils/mathutils.h"
 
 #include "BLI_utildefines.h"
@@ -30,17 +30,17 @@
 #include "BKE_context.h"
 
 #include "WM_api.h"
-#include "WM_types.h"
 #include "WM_message.h"
+#include "WM_types.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
 #include "RNA_enum_types.h"
 
 #include "bpy_capi_utils.h"
-#include "bpy_rna.h"
-#include "bpy_intern_string.h"
 #include "bpy_gizmo_wrap.h" /* own include */
+#include "bpy_intern_string.h"
+#include "bpy_rna.h"
 
 #include "bpy_msgbus.h" /* own include */
 
@@ -206,7 +206,7 @@ static void bpy_msgbus_subscribe_value_free_data(struct wmMsgSubscribeKey *UNUSE
 
 PyDoc_STRVAR(
     bpy_msgbus_subscribe_rna_doc,
-    ".. function:: subscribe_rna(data, owner, args, notify, options=set())\n"
+    ".. function:: subscribe_rna(key, owner, args, notify, options=set())\n"
     "\n" BPY_MSGBUS_RNA_MSGKEY_DOC
     "   :arg owner: Handle for this subscription (compared by identity).\n"
     "   :type owner: Any type.\n"
@@ -314,7 +314,7 @@ static PyObject *bpy_msgbus_subscribe_rna(PyObject *UNUSED(self), PyObject *args
 
 PyDoc_STRVAR(
     bpy_msgbus_publish_rna_doc,
-    ".. function:: publish_rna(data, owner, args, notify)\n"
+    ".. function:: publish_rna(key)\n"
     "\n" BPY_MSGBUS_RNA_MSGKEY_DOC
     "\n"
     "   Notify subscribers of changes to this property\n"

@@ -21,19 +21,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "BLI_utildefines.h"
 #include "BLI_path_util.h"
+#include "BLI_utildefines.h"
 
-#include "RNA_define.h"
 #include "RNA_access.h"
+#include "RNA_define.h"
 
 #include "rna_internal.h"
 
 #ifdef RNA_RUNTIME
 
+#  include "BKE_global.h"
 #  include "BKE_main.h"
 #  include "BKE_mesh.h"
-#  include "BKE_global.h"
 
 /* all the list begin functions are added manually here, Main is not in SDNA */
 
@@ -109,9 +109,7 @@ RNA_MAIN_LISTBASE_FUNCS_DEF(collections)
 RNA_MAIN_LISTBASE_FUNCS_DEF(curves)
 RNA_MAIN_LISTBASE_FUNCS_DEF(fonts)
 RNA_MAIN_LISTBASE_FUNCS_DEF(gpencils)
-#  ifdef WITH_NEW_OBJECT_TYPES
 RNA_MAIN_LISTBASE_FUNCS_DEF(hairs)
-#  endif
 RNA_MAIN_LISTBASE_FUNCS_DEF(images)
 RNA_MAIN_LISTBASE_FUNCS_DEF(lattices)
 RNA_MAIN_LISTBASE_FUNCS_DEF(libraries)
@@ -128,12 +126,11 @@ RNA_MAIN_LISTBASE_FUNCS_DEF(objects)
 RNA_MAIN_LISTBASE_FUNCS_DEF(paintcurves)
 RNA_MAIN_LISTBASE_FUNCS_DEF(palettes)
 RNA_MAIN_LISTBASE_FUNCS_DEF(particles)
-#  ifdef WITH_NEW_OBJECT_TYPES
 RNA_MAIN_LISTBASE_FUNCS_DEF(pointclouds)
-#  endif
 RNA_MAIN_LISTBASE_FUNCS_DEF(scenes)
 RNA_MAIN_LISTBASE_FUNCS_DEF(screens)
 RNA_MAIN_LISTBASE_FUNCS_DEF(shapekeys)
+RNA_MAIN_LISTBASE_FUNCS_DEF(simulations)
 RNA_MAIN_LISTBASE_FUNCS_DEF(sounds)
 RNA_MAIN_LISTBASE_FUNCS_DEF(speakers)
 RNA_MAIN_LISTBASE_FUNCS_DEF(texts)
@@ -387,7 +384,6 @@ void RNA_def_main(BlenderRNA *brna)
        "LightProbes",
        "LightProbe data-blocks",
        RNA_def_main_lightprobes},
-#  ifdef WITH_NEW_OBJECT_TYPES
       {"hairs", "Hair", "rna_Main_hairs_begin", "Hairs", "Hair data-blocks", RNA_def_main_hairs},
       {"pointclouds",
        "PointCloud",
@@ -395,13 +391,18 @@ void RNA_def_main(BlenderRNA *brna)
        "Point Clouds",
        "Point cloud data-blocks",
        RNA_def_main_pointclouds},
-#  endif
       {"volumes",
        "Volume",
        "rna_Main_volumes_begin",
        "Volumes",
        "Volume data-blocks",
        RNA_def_main_volumes},
+      {"simulations",
+       "Simulation",
+       "rna_Main_simulations_begin",
+       "Simulations",
+       "Simulation data-blocks",
+       RNA_def_main_simulations},
       {NULL, NULL, NULL, NULL, NULL, NULL},
   };
 
@@ -444,7 +445,7 @@ void RNA_def_main(BlenderRNA *brna)
                             0,
                             INT_MAX,
                             "Version",
-                            "Version of Blender the .blend was saved with",
+                            "File format version the .blend file was saved with",
                             0,
                             INT_MAX);
   RNA_def_property_int_funcs(prop, "rna_Main_version_get", NULL, NULL);

@@ -37,8 +37,8 @@
 
 #include "rna_internal.h"
 
-#include "WM_types.h"
 #include "WM_api.h"
+#include "WM_types.h"
 
 const EnumPropertyItem rna_enum_image_generated_type_items[] = {
     {IMA_GENTYPE_BLANK, "BLANK", 0, "Blank", "Generate a blank image"},
@@ -57,7 +57,7 @@ static const EnumPropertyItem image_source_items[] = {
     {IMA_SRC_MOVIE, "MOVIE", 0, "Movie", "Movie file"},
     {IMA_SRC_GENERATED, "GENERATED", 0, "Generated", "Generated image"},
     {IMA_SRC_VIEWER, "VIEWER", 0, "Viewer", "Compositing node viewer"},
-    {IMA_SRC_TILED, "TILED", 0, "Tiled", "Tiled image texture"},
+    {IMA_SRC_TILED, "TILED", 0, "UDIM Tiles", "Tiled UDIM image texture"},
     {0, NULL, 0, NULL, NULL},
 };
 
@@ -915,13 +915,13 @@ static void rna_def_image(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
   RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_LIBRARY);
-  RNA_def_property_string_sdna(prop, NULL, "name");
+  RNA_def_property_string_sdna(prop, NULL, "filepath");
   RNA_def_property_ui_text(prop, "File Name", "Image/Movie file name");
   RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_reload_update");
 
   /* eek. this is horrible but needed so we can save to a new name without blanking the data :( */
   prop = RNA_def_property(srna, "filepath_raw", PROP_STRING, PROP_FILEPATH);
-  RNA_def_property_string_sdna(prop, NULL, "name");
+  RNA_def_property_string_sdna(prop, NULL, "filepath");
   RNA_def_property_ui_text(prop, "File Name", "Image/Movie file name (without data refreshing)");
 
   prop = RNA_def_property(srna, "file_format", PROP_ENUM, PROP_NONE);
@@ -1001,7 +1001,7 @@ static void rna_def_image(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_generated_update");
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
-  prop = RNA_def_property(srna, "generated_width", PROP_INT, PROP_NONE);
+  prop = RNA_def_property(srna, "generated_width", PROP_INT, PROP_PIXEL);
   RNA_def_property_int_sdna(prop, NULL, "gen_x");
   RNA_def_property_flag(prop, PROP_PROPORTIONAL);
   RNA_def_property_range(prop, 1, 65536);
@@ -1009,7 +1009,7 @@ static void rna_def_image(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, "rna_Image_generated_update");
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
-  prop = RNA_def_property(srna, "generated_height", PROP_INT, PROP_NONE);
+  prop = RNA_def_property(srna, "generated_height", PROP_INT, PROP_PIXEL);
   RNA_def_property_int_sdna(prop, NULL, "gen_y");
   RNA_def_property_flag(prop, PROP_PROPORTIONAL);
   RNA_def_property_range(prop, 1, 65536);
@@ -1097,9 +1097,9 @@ static void rna_def_image(BlenderRNA *brna)
       prop, "Duration", "Duration (in frames) of the image (1 when not a video/sequence)");
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
-  /* NOTE about pixels/channels/is_floa:
-   * this properties describes how image is stored internally (inside of ImBuf),
-   * not how it was saved to disk or how it'll be saved on disk
+  /* NOTE about pixels/channels/is_float:
+   * These properties describe how the image is stored internally (inside of ImBuf),
+   * not how it was saved to disk or how it'll be saved on disk.
    */
   prop = RNA_def_property(srna, "pixels", PROP_FLOAT, PROP_NONE);
   RNA_def_property_flag(prop, PROP_DYNAMIC);

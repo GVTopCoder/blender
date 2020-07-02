@@ -27,53 +27,54 @@
 
 #include <sys/stat.h>
 
-#include <string.h>
 #include <assert.h>
+#include <string.h>
 
 /* path/file handling stuff */
 #ifndef WIN32
 #  include <dirent.h>
 #  include <unistd.h>
 #else
-#  include <io.h>
 #  include "BLI_winstuff.h"
+#  include <io.h>
 #endif
 
 #include "MEM_guardedalloc.h"
 
 #include "DNA_brush_types.h"
 #include "DNA_cachefile_types.h"
+#include "DNA_fluid_types.h"
+#include "DNA_freestyle_types.h"
 #include "DNA_image_types.h"
+#include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_movieclip_types.h"
+#include "DNA_node_types.h"
 #include "DNA_object_fluidsim_types.h"
 #include "DNA_object_force_types.h"
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
+#include "DNA_pointcache_types.h"
+#include "DNA_scene_types.h"
 #include "DNA_sequence_types.h"
 #include "DNA_sound_types.h"
 #include "DNA_text_types.h"
-#include "DNA_material_types.h"
-#include "DNA_node_types.h"
 #include "DNA_texture_types.h"
 #include "DNA_vfont_types.h"
-#include "DNA_scene_types.h"
-#include "DNA_fluid_types.h"
-#include "DNA_freestyle_types.h"
 #include "DNA_volume_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_font.h"
+#include "BKE_image.h"
 #include "BKE_lib_id.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
 #include "BKE_sequencer.h"
-#include "BKE_image.h"
 
 #include "BKE_bpath.h" /* own include */
 
@@ -137,7 +138,7 @@ static bool bpath_relative_rebase_visit_cb(void *userdata, char *path_dst, const
     char filepath[(FILE_MAXDIR * 2) + FILE_MAXFILE];
     BLI_strncpy(filepath, path_src, FILE_MAX);
     if (BLI_path_abs(filepath, data->basedir_src)) {
-      BLI_cleanup_path(NULL, filepath);
+      BLI_path_normalize(NULL, filepath);
 
       /* This may fail, if so it's fine to leave absolute since the path is still valid. */
       BLI_path_rel(filepath, data->basedir_dst);
@@ -563,8 +564,8 @@ void BKE_bpath_traverse_id(
          * don't make sense to add directories to until the image has been saved
          * once to give it a meaningful value. */
         if (ELEM(ima->source, IMA_SRC_FILE, IMA_SRC_MOVIE, IMA_SRC_SEQUENCE, IMA_SRC_TILED) &&
-            ima->name[0]) {
-          if (rewrite_path_fixed(ima->name, visit_cb, absbase, bpath_user_data)) {
+            ima->filepath[0]) {
+          if (rewrite_path_fixed(ima->filepath, visit_cb, absbase, bpath_user_data)) {
             if (flag & BKE_BPATH_TRAVERSE_RELOAD_EDITED) {
               if (!BKE_image_has_packedfile(ima) &&
                   /* image may have been painted onto (and not saved, T44543) */
@@ -642,7 +643,7 @@ void BKE_bpath_traverse_id(
     case ID_SO: {
       bSound *sound = (bSound *)id;
       if (sound->packedfile == NULL || (flag & BKE_BPATH_TRAVERSE_SKIP_PACKED) == 0) {
-        rewrite_path_fixed(sound->name, visit_cb, absbase, bpath_user_data);
+        rewrite_path_fixed(sound->filepath, visit_cb, absbase, bpath_user_data);
       }
       break;
     }
@@ -654,15 +655,15 @@ void BKE_bpath_traverse_id(
       break;
     }
     case ID_TXT:
-      if (((Text *)id)->name) {
-        rewrite_path_alloc(&((Text *)id)->name, visit_cb, absbase, bpath_user_data);
+      if (((Text *)id)->filepath) {
+        rewrite_path_alloc(&((Text *)id)->filepath, visit_cb, absbase, bpath_user_data);
       }
       break;
     case ID_VF: {
       VFont *vfont = (VFont *)id;
       if (vfont->packedfile == NULL || (flag & BKE_BPATH_TRAVERSE_SKIP_PACKED) == 0) {
         if (BKE_vfont_is_builtin(vfont) == false) {
-          rewrite_path_fixed(((VFont *)id)->name, visit_cb, absbase, bpath_user_data);
+          rewrite_path_fixed(((VFont *)id)->filepath, visit_cb, absbase, bpath_user_data);
         }
       }
       break;
@@ -755,15 +756,15 @@ void BKE_bpath_traverse_id(
       Library *lib = (Library *)id;
       /* keep packedfile paths always relative to the blend */
       if (lib->packedfile == NULL) {
-        if (rewrite_path_fixed(lib->name, visit_cb, absbase, bpath_user_data)) {
-          BKE_library_filepath_set(bmain, lib, lib->name);
+        if (rewrite_path_fixed(lib->filepath, visit_cb, absbase, bpath_user_data)) {
+          BKE_library_filepath_set(bmain, lib, lib->filepath);
         }
       }
       break;
     }
     case ID_MC: {
       MovieClip *clip = (MovieClip *)id;
-      rewrite_path_fixed(clip->name, visit_cb, absbase, bpath_user_data);
+      rewrite_path_fixed(clip->filepath, visit_cb, absbase, bpath_user_data);
       break;
     }
     case ID_CF: {
@@ -815,13 +816,13 @@ bool BKE_bpath_relocate_visitor(void *pathbase_v, char *path_dst, const char *pa
   }
 
   /* Make referenced file absolute. This would be a side-effect of
-   * BLI_cleanup_path, but we do it explicitly so we know if it changed. */
+   * BLI_path_normalize, but we do it explicitly so we know if it changed. */
   BLI_strncpy(filepath, path_src, FILE_MAX);
   if (BLI_path_abs(filepath, base_old)) {
     /* Path was relative and is now absolute. Remap.
-     * Important BLI_cleanup_path runs before the path is made relative
+     * Important BLI_path_normalize runs before the path is made relative
      * because it wont work for paths that start with "//../" */
-    BLI_cleanup_path(base_new, filepath);
+    BLI_path_normalize(base_new, filepath);
     BLI_path_rel(filepath, base_new);
     BLI_strncpy(path_dst, filepath, FILE_MAX);
     return true;

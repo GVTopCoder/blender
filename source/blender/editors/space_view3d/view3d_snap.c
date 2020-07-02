@@ -28,8 +28,8 @@
 
 #include "BLI_array.h"
 #include "BLI_blenlib.h"
-#include "BLI_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_action.h"
 #include "BKE_armature.h"
@@ -52,10 +52,10 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
-#include "ED_object.h"
-#include "ED_transverts.h"
 #include "ED_keyframing.h"
+#include "ED_object.h"
 #include "ED_screen.h"
+#include "ED_transverts.h"
 
 #include "view3d_intern.h"
 
@@ -850,12 +850,12 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
     return false;
   }
 
-  if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEDIAN) {
-    mul_v3_fl(centroid, 1.0f / (float)count);
-    copy_v3_v3(cursor, centroid);
+  if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_BOUNDS) {
+    mid_v3_v3v3(cursor, min, max);
   }
   else {
-    mid_v3_v3v3(cursor, min, max);
+    mul_v3_fl(centroid, 1.0f / (float)count);
+    copy_v3_v3(cursor, centroid);
   }
   return true;
 }

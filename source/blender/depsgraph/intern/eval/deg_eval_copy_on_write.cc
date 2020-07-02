@@ -35,15 +35,15 @@
 
 #include <cstring>
 
-#include "BLI_utildefines.h"
 #include "BLI_listbase.h"
-#include "BLI_threads.h"
 #include "BLI_string.h"
+#include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_curve.h"
 #include "BKE_global.h"
-#include "BKE_idprop.h"
 #include "BKE_gpencil.h"
+#include "BKE_idprop.h"
 #include "BKE_layer.h"
 #include "BKE_lib_id.h"
 #include "BKE_scene.h"
@@ -53,26 +53,26 @@
 
 #include "MEM_guardedalloc.h"
 
-extern "C" {
 #include "DNA_ID.h"
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
-#include "DNA_scene_types.h"
-#include "DNA_sequence_types.h"
-#include "DNA_sound_types.h"
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
+#include "DNA_scene_types.h"
+#include "DNA_sequence_types.h"
+#include "DNA_simulation_types.h"
+#include "DNA_sound_types.h"
 
 #include "DRW_engine.h"
 
 #ifdef NESTED_ID_NASTY_WORKAROUND
 #  include "DNA_curve_types.h"
 #  include "DNA_key_types.h"
-#  include "DNA_light_types.h"
 #  include "DNA_lattice_types.h"
+#  include "DNA_light_types.h"
 #  include "DNA_linestyle_types.h"
 #  include "DNA_material_types.h"
 #  include "DNA_meta_types.h"
@@ -82,6 +82,7 @@ extern "C" {
 #endif
 
 #include "BKE_action.h"
+#include "BKE_anim_data.h"
 #include "BKE_animsys.h"
 #include "BKE_armature.h"
 #include "BKE_editmesh.h"
@@ -91,16 +92,16 @@ extern "C" {
 #include "BKE_pointcache.h"
 #include "BKE_sequencer.h"
 #include "BKE_sound.h"
-}
 
-#include "intern/depsgraph.h"
 #include "intern/builder/deg_builder.h"
 #include "intern/builder/deg_builder_nodes.h"
+#include "intern/depsgraph.h"
 #include "intern/eval/deg_eval_runtime_backup.h"
 #include "intern/node/deg_node.h"
 #include "intern/node/deg_node_id.h"
 
-namespace DEG {
+namespace blender {
+namespace deg {
 
 #define DEBUG_PRINT \
   if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) \
@@ -710,6 +711,13 @@ void update_modifiers_orig_pointers(const Object *object_orig, Object *object_co
       &object_orig->modifiers, &object_cow->modifiers, &ModifierData::orig_modifier_data);
 }
 
+void update_simulation_states_orig_pointers(const Simulation *simulation_orig,
+                                            Simulation *simulation_cow)
+{
+  update_list_orig_pointers(
+      &simulation_orig->states, &simulation_cow->states, &SimulationState::orig_state);
+}
+
 void update_nla_strips_orig_pointers(const ListBase *strips_orig, ListBase *strips_cow)
 {
   NlaStrip *strip_orig = reinterpret_cast<NlaStrip *>(strips_orig->first);
@@ -807,6 +815,12 @@ void update_id_after_copy(const Depsgraph *depsgraph,
       scene_cow->eevee.light_cache_data = scene_orig->eevee.light_cache_data;
       scene_setup_view_layers_after_remap(depsgraph, id_node, reinterpret_cast<Scene *>(id_cow));
       update_scene_orig_pointers(scene_orig, scene_cow);
+      break;
+    }
+    case ID_SIM: {
+      Simulation *simulation_cow = (Simulation *)id_cow;
+      const Simulation *simulation_orig = (const Simulation *)id_orig;
+      update_simulation_states_orig_pointers(simulation_orig, simulation_cow);
       break;
     }
     default:
@@ -932,7 +946,7 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
                                        DepsgraphNodeBuilder *node_builder,
                                        bool create_placeholders)
 {
-  DEG::IDNode *id_node = depsgraph->find_id_node(id_orig);
+  IDNode *id_node = depsgraph->find_id_node(id_orig);
   BLI_assert(id_node != nullptr);
   return deg_expand_copy_on_write_datablock(depsgraph, id_node, node_builder, create_placeholders);
 }
@@ -956,7 +970,7 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph, const IDNode 
 /* NOTE: Depsgraph is supposed to have ID node already. */
 ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph, ID *id_orig)
 {
-  DEG::IDNode *id_node = depsgraph->find_id_node(id_orig);
+  IDNode *id_node = depsgraph->find_id_node(id_orig);
   BLI_assert(id_node != nullptr);
   return deg_update_copy_on_write_datablock(depsgraph, id_node);
 }
@@ -1076,7 +1090,7 @@ void deg_free_copy_on_write_datablock(ID *id_cow)
 
 void deg_evaluate_copy_on_write(struct ::Depsgraph *graph, const IDNode *id_node)
 {
-  const DEG::Depsgraph *depsgraph = reinterpret_cast<const DEG::Depsgraph *>(graph);
+  const Depsgraph *depsgraph = reinterpret_cast<const Depsgraph *>(graph);
   DEG_debug_print_eval(graph, __func__, id_node->id_orig->name, id_node->id_cow);
   if (id_node->id_orig == &depsgraph->scene->id) {
     /* NOTE: This is handled by eval_ctx setup routines, which
@@ -1124,4 +1138,5 @@ bool deg_copy_on_write_is_needed(const ID_Type id_type)
   return ID_TYPE_IS_COW(id_type);
 }
 
-}  // namespace DEG
+}  // namespace deg
+}  // namespace blender

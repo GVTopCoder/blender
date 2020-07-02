@@ -20,20 +20,20 @@
  * \ingroup RNA
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
 
+#include "DNA_boid_types.h"
+#include "DNA_cloth_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
-#include "DNA_cloth_types.h"
-#include "DNA_particle_types.h"
 #include "DNA_object_force_types.h"
 #include "DNA_object_types.h"
+#include "DNA_particle_types.h"
 #include "DNA_scene_types.h"
-#include "DNA_boid_types.h"
 #include "DNA_texture_types.h"
 
 #include "RNA_define.h"
@@ -41,12 +41,14 @@
 
 #include "BKE_mesh.h"
 
+#include "BLI_listbase.h"
+
 #include "BLT_translation.h"
 
 #include "rna_internal.h"
 
-#include "WM_types.h"
 #include "WM_api.h"
+#include "WM_types.h"
 
 #ifdef RNA_RUNTIME
 static const EnumPropertyItem part_from_items[] = {
@@ -149,9 +151,9 @@ static const EnumPropertyItem part_fluid_type_items[] = {
 #  include "BLI_string_utils.h"
 
 #  include "BKE_boids.h"
-#  include "BKE_context.h"
 #  include "BKE_cloth.h"
 #  include "BKE_colortools.h"
+#  include "BKE_context.h"
 #  include "BKE_deform.h"
 #  include "BKE_effect.h"
 #  include "BKE_material.h"
@@ -695,7 +697,7 @@ static void rna_Particle_change_type(Main *bmain, Scene *UNUSED(scene), PointerR
 
   /* Iterating over all object is slow, but no better solution exists at the moment. */
   for (Object *ob = bmain->objects.first; ob; ob = ob->id.next) {
-    for (ParticleSystem *psys = ob->particlesystem.first; psys; psys = psys->next) {
+    LISTBASE_FOREACH (ParticleSystem *, psys, &ob->particlesystem) {
       if (psys->part == part) {
         psys_changed_type(ob, psys);
         psys->recalc |= ID_RECALC_PSYS_RESET;
@@ -825,7 +827,7 @@ static void rna_Particle_hair_dynamics_update(Main *bmain, Scene *scene, Pointer
   ParticleSystem *psys = (ParticleSystem *)ptr->data;
 
   if (psys && !psys->clmd) {
-    psys->clmd = (ClothModifierData *)modifier_new(eModifierType_Cloth);
+    psys->clmd = (ClothModifierData *)BKE_modifier_new(eModifierType_Cloth);
     psys->clmd->sim_parms->goalspring = 0.0f;
     psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_RESIST_SPRING_COMPRESS;
     psys->clmd->coll_parms->flags &= ~CLOTH_COLLSETTINGS_FLAG_SELF;
@@ -2955,7 +2957,7 @@ static void rna_def_particle_settings(BlenderRNA *brna)
   prop = RNA_def_property(srna, "tangent_phase", PROP_FLOAT, PROP_NONE);
   RNA_def_property_float_sdna(prop, NULL, "tanphase");
   RNA_def_property_range(prop, -1.0f, 1.0f);
-  RNA_def_property_ui_text(prop, "Rot", "Rotate the surface tangent");
+  RNA_def_property_ui_text(prop, "Rotation", "Rotate the surface tangent");
   RNA_def_property_update(prop, 0, "rna_Particle_reset");
 
   prop = RNA_def_property(srna, "reactor_factor", PROP_FLOAT, PROP_NONE);
@@ -3358,7 +3360,7 @@ static void rna_def_particle_settings(BlenderRNA *brna)
       prop,
       "Use Modifier Stack",
       "Emit particles from mesh with modifiers applied "
-      "(must use same subsurf level for viewport and render for correct results)");
+      "(must use same subdivision surface level for viewport and render for correct results)");
   RNA_def_property_update(prop, 0, "rna_Particle_change_type");
 
   /* draw objects & collections */

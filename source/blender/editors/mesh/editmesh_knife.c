@@ -29,14 +29,14 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_listbase.h"
-#include "BLI_string.h"
-#include "BLI_array.h"
 #include "BLI_alloca.h"
+#include "BLI_array.h"
 #include "BLI_linklist.h"
+#include "BLI_listbase.h"
 #include "BLI_math.h"
-#include "BLI_smallhash.h"
 #include "BLI_memarena.h"
+#include "BLI_smallhash.h"
+#include "BLI_string.h"
 
 #include "BLT_translation.h"
 
@@ -50,10 +50,10 @@
 #include "GPU_matrix.h"
 #include "GPU_state.h"
 
+#include "ED_mesh.h"
 #include "ED_screen.h"
 #include "ED_space_api.h"
 #include "ED_view3d.h"
-#include "ED_mesh.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -1162,6 +1162,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(region), v
     rgba_uchar_to_float(fcol, kcd->colors.point_a);
     GPU_batch_uniform_4fv(batch, "color", fcol);
     GPU_matrix_bind(batch->interface);
+    GPU_shader_set_srgb_uniform(batch->interface);
     GPU_point_size(11);
     if (snapped_verts_count > 0) {
       GPU_batch_draw_advanced(batch, 0, snapped_verts_count, 0, 0);
@@ -1579,7 +1580,7 @@ static void knife_find_line_hits(KnifeTool_OpData *kcd)
   float line_tol, line_tol_sq;
   float face_tol, face_tol_sq;
   int isect_kind;
-  unsigned int tot;
+  uint tot;
   int i;
   const bool use_hit_prev = true;
   const bool use_hit_curr = (kcd->is_drag_hold == false);
@@ -1894,12 +1895,12 @@ static BMFace *knife_find_closest_face(KnifeTool_OpData *kcd,
 
   if (!f) {
     if (kcd->is_interactive) {
-      /* try to use backbuffer selection method if ray casting failed */
+      /* Try to use back-buffer selection method if ray casting failed. */
       f = EDBM_face_find_nearest(&kcd->vc, &dist);
 
       /* cheat for now; just put in the origin instead
        * of a true coordinate on the face.
-       * This just puts a point 1.0f infront of the view. */
+       * This just puts a point 1.0f in front of the view. */
       add_v3_v3v3(co, origin, ray);
     }
   }
@@ -1907,8 +1908,10 @@ static BMFace *knife_find_closest_face(KnifeTool_OpData *kcd,
   return f;
 }
 
-/* find the 2d screen space density of vertices within a radius.  used to scale snapping
- * distance for picking edges/verts.*/
+/**
+ * Find the 2d screen space density of vertices within a radius.
+ * Used to scale snapping distance for picking edges/verts.
+ */
 static int knife_sample_screen_density(KnifeTool_OpData *kcd, const float radius)
 {
   BMFace *f;
@@ -2419,7 +2422,7 @@ static void knife_make_face_cuts(KnifeTool_OpData *kcd, BMFace *f, ListBase *kfe
     edge_array_len = i;
 
 #ifdef USE_NET_ISLAND_CONNECT
-    unsigned int edge_array_holes_len;
+    uint edge_array_holes_len;
     BMEdge **edge_array_holes;
     if (BM_face_split_edgenet_connect_islands(bm,
                                               f,
@@ -2824,14 +2827,14 @@ wmKeyMap *knifetool_modal_keymap(wmKeyConfig *keyconf)
       {0, NULL, 0, NULL, NULL},
   };
 
-  wmKeyMap *keymap = WM_modalkeymap_get(keyconf, "Knife Tool Modal Map");
+  wmKeyMap *keymap = WM_modalkeymap_find(keyconf, "Knife Tool Modal Map");
 
   /* this function is called for each spacetype, only needs to add map once */
   if (keymap && keymap->modal_items) {
     return NULL;
   }
 
-  keymap = WM_modalkeymap_add(keyconf, "Knife Tool Modal Map", modal_items);
+  keymap = WM_modalkeymap_ensure(keyconf, "Knife Tool Modal Map", modal_items);
 
   WM_modalkeymap_assign(keymap, "MESH_OT_knife_tool");
 
@@ -2997,6 +3000,7 @@ static int knifetool_modal(bContext *C, wmOperator *op, const wmEvent *event)
       case MOUSEROTATE:
       case WHEELUPMOUSE:
       case WHEELDOWNMOUSE:
+      case NDOF_MOTION:
         return OPERATOR_PASS_THROUGH;
       case MOUSEMOVE: /* mouse moved somewhere to select another loop */
         if (kcd->mode != MODE_PANNING) {

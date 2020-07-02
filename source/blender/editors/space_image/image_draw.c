@@ -27,26 +27,26 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_camera_types.h"
+#include "DNA_mask_types.h"
 #include "DNA_object_types.h"
-#include "DNA_space_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
-#include "DNA_brush_types.h"
-#include "DNA_mask_types.h"
+#include "DNA_space_types.h"
 
 #include "PIL_time.h"
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_rect.h"
-#include "BLI_threads.h"
 #include "BLI_string.h"
+#include "BLI_threads.h"
 #include "BLI_utildefines.h"
 
+#include "IMB_colormanagement.h"
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
-#include "IMB_colormanagement.h"
 #include "IMB_moviecache.h"
 
 #include "BKE_context.h"
@@ -72,8 +72,8 @@
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
-#include "RE_pipeline.h"
 #include "RE_engine.h"
+#include "RE_pipeline.h"
 
 #include "image_intern.h"
 
@@ -476,7 +476,7 @@ static void sima_draw_zbuf_pixels(
 
   IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR);
   GPU_shader_uniform_vector(
-      state.shader, GPU_shader_get_uniform_ensure(state.shader, "shuffle"), 4, 1, red);
+      state.shader, GPU_shader_get_uniform(state.shader, "shuffle"), 4, 1, red);
 
   immDrawPixelsTex(
       &state, x1, y1, rectx, recty, GL_RED, GL_INT, GL_NEAREST, recti, zoomx, zoomy, NULL);
@@ -524,7 +524,7 @@ static void sima_draw_zbuffloat_pixels(Scene *scene,
 
   IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR);
   GPU_shader_uniform_vector(
-      state.shader, GPU_shader_get_uniform_ensure(state.shader, "shuffle"), 4, 1, red);
+      state.shader, GPU_shader_get_uniform(state.shader, "shuffle"), 4, 1, red);
 
   immDrawPixelsTex(
       &state, x1, y1, rectx, recty, GL_RED, GL_FLOAT, GL_NEAREST, rectf, zoomx, zoomy, NULL);
@@ -575,13 +575,17 @@ static void draw_image_buffer(const bContext *C,
                               float zoomx,
                               float zoomy)
 {
+  /* Image are still drawn in display space. */
+  glDisable(GL_FRAMEBUFFER_SRGB);
+
   int x, y;
+  int sima_flag = sima->flag & ED_space_image_get_display_channel_mask(ibuf);
 
   /* find window pixel coordinates of origin */
   UI_view2d_view_to_region(&region->v2d, fx, fy, &x, &y);
 
   /* this part is generic image display */
-  if (sima->flag & SI_SHOW_ZBUF && (ibuf->zbuf || ibuf->zbuf_float || (ibuf->channels == 1))) {
+  if (sima_flag & SI_SHOW_ZBUF && (ibuf->zbuf || ibuf->zbuf_float || (ibuf->channels == 1))) {
     if (ibuf->zbuf) {
       sima_draw_zbuf_pixels(x, y, ibuf->x, ibuf->y, ibuf->zbuf, zoomx, zoomy);
     }
@@ -597,7 +601,7 @@ static void draw_image_buffer(const bContext *C,
     UI_view2d_view_to_region(
         &region->v2d, region->v2d.cur.xmax, region->v2d.cur.ymax, &clip_max_x, &clip_max_y);
 
-    if (sima->flag & SI_USE_ALPHA) {
+    if (sima_flag & SI_USE_ALPHA) {
       imm_draw_box_checker_2d(x, y, x + ibuf->x * zoomx, y + ibuf->y * zoomy);
 
       GPU_blend(true);
@@ -606,7 +610,7 @@ static void draw_image_buffer(const bContext *C,
     }
 
     /* If RGBA display with color management */
-    if ((sima->flag & (SI_SHOW_R | SI_SHOW_G | SI_SHOW_B | SI_SHOW_ALPHA)) == 0) {
+    if ((sima_flag & (SI_SHOW_R | SI_SHOW_G | SI_SHOW_B | SI_SHOW_ALPHA)) == 0) {
 
       ED_draw_imbuf_ctx_clipping(
           C, ibuf, x, y, GL_NEAREST, 0, 0, clip_max_x, clip_max_y, zoomx, zoomy);
@@ -618,22 +622,22 @@ static void draw_image_buffer(const bContext *C,
       ColorManagedViewSettings *view_settings;
       ColorManagedDisplaySettings *display_settings;
 
-      if (sima->flag & SI_SHOW_R) {
+      if (sima_flag & SI_SHOW_R) {
         shuffle[0] = 1.0f;
       }
-      else if (sima->flag & SI_SHOW_G) {
+      else if (sima_flag & SI_SHOW_G) {
         shuffle[1] = 1.0f;
       }
-      else if (sima->flag & SI_SHOW_B) {
+      else if (sima_flag & SI_SHOW_B) {
         shuffle[2] = 1.0f;
       }
-      else if (sima->flag & SI_SHOW_ALPHA) {
+      else if (sima_flag & SI_SHOW_ALPHA) {
         shuffle[3] = 1.0f;
       }
 
       IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR);
       GPU_shader_uniform_vector(
-          state.shader, GPU_shader_get_uniform_ensure(state.shader, "shuffle"), 4, 1, shuffle);
+          state.shader, GPU_shader_get_uniform(state.shader, "shuffle"), 4, 1, shuffle);
 
       IMB_colormanagement_display_settings_from_ctx(C, &view_settings, &display_settings);
       display_buffer = IMB_display_buffer_acquire(
@@ -661,10 +665,12 @@ static void draw_image_buffer(const bContext *C,
       IMB_display_buffer_release(cache_handle);
     }
 
-    if (sima->flag & SI_USE_ALPHA) {
+    if (sima_flag & SI_USE_ALPHA) {
       GPU_blend(false);
     }
   }
+
+  glEnable(GL_FRAMEBUFFER_SRGB);
 }
 
 static void draw_image_buffer_repeated(const bContext *C,

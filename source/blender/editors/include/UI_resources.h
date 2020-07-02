@@ -26,10 +26,6 @@
 
 #include "BLI_sys_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Define icon enum. */
 #define DEF_ICON(name) ICON_##name,
 #define DEF_ICON_VECTOR(name) ICON_##name,
@@ -46,6 +42,10 @@ typedef enum {
 
 /* use to denote intentionally unset theme color */
 #define TH_UNDEFINED -1
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum ThemeColorID {
   TH_REDALERT,
@@ -308,6 +308,10 @@ typedef enum ThemeColorID {
   TH_WIDGET_TEXT_CURSOR,
   TH_EDITOR_OUTLINE,
 
+  TH_TRANSPARENT_CHECKER_PRIMARY,
+  TH_TRANSPARENT_CHECKER_SECONDARY,
+  TH_TRANSPARENT_CHECKER_SIZE,
+
   TH_AXIS_X, /* X/Y/Z Axis */
   TH_AXIS_Y,
   TH_AXIS_Z,
@@ -315,6 +319,7 @@ typedef enum ThemeColorID {
   TH_GIZMO_HI,
   TH_GIZMO_PRIMARY,
   TH_GIZMO_SECONDARY,
+  TH_GIZMO_VIEW_ALIGN,
   TH_GIZMO_A,
   TH_GIZMO_B,
 

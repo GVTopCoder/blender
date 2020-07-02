@@ -24,14 +24,14 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BLI_alloca.h"
+#include "BLI_array.h"
+#include "BLI_kdopbvh.h"
+#include "BLI_linklist_stack.h"
 #include "BLI_math.h"
 #include "BLI_memarena.h"
-#include "BLI_array.h"
-#include "BLI_alloca.h"
-#include "BLI_utildefines_stack.h"
-#include "BLI_linklist_stack.h"
 #include "BLI_sort_utils.h"
-#include "BLI_kdopbvh.h"
+#include "BLI_utildefines_stack.h"
 
 #include "BKE_customdata.h"
 
@@ -1242,7 +1242,8 @@ bool BM_face_split_edgenet_connect_islands(BMesh *bm,
                                            uint *r_edge_net_new_len)
 {
   /* -------------------------------------------------------------------- */
-  /* This function has 2 main parts.
+  /**
+   * This function has 2 main parts.
    *
    * - Check if there are any holes.
    * - Connect the holes with edges (if any are found).

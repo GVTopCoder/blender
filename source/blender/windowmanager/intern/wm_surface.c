@@ -28,14 +28,14 @@
 #include "GHOST_C-api.h"
 
 #include "GPU_batch_presets.h"
+#include "GPU_context.h"
 #include "GPU_framebuffer.h"
 #include "GPU_immediate.h"
-#include "GPU_context.h"
 
 #include "MEM_guardedalloc.h"
 
-#include "WM_types.h"
 #include "WM_api.h"
+#include "WM_types.h"
 #include "wm.h"
 
 #include "wm_surface.h"
@@ -45,7 +45,7 @@ static wmSurface *g_drawable = NULL;
 
 void wm_surfaces_iter(bContext *C, void (*cb)(bContext *C, wmSurface *))
 {
-  for (wmSurface *surf = global_surface_list.first; surf; surf = surf->next) {
+  LISTBASE_FOREACH (wmSurface *, surf, &global_surface_list) {
     cb(C, surf);
   }
 }
@@ -53,9 +53,16 @@ void wm_surfaces_iter(bContext *C, void (*cb)(bContext *C, wmSurface *))
 void wm_surface_clear_drawable(void)
 {
   if (g_drawable) {
+    WM_opengl_context_release(g_drawable->ghost_ctx);
+    GPU_context_active_set(NULL);
+
     BLF_batch_reset();
     gpu_batch_presets_reset();
     immDeactivate();
+
+    if (g_drawable->deactivate) {
+      g_drawable->deactivate();
+    }
 
     g_drawable = NULL;
   }
@@ -67,7 +74,10 @@ void wm_surface_set_drawable(wmSurface *surface, bool activate)
 
   g_drawable = surface;
   if (activate) {
-    GHOST_ActivateOpenGLContext(surface->ghost_ctx);
+    if (surface->activate) {
+      surface->activate();
+    }
+    WM_opengl_context_activate(surface->ghost_ctx);
   }
 
   GPU_context_active_set(surface->gpu_ctx);
@@ -109,6 +119,8 @@ void wm_surface_remove(wmSurface *surface)
 
 void wm_surfaces_free(void)
 {
+  wm_surface_clear_drawable();
+
   for (wmSurface *surf = global_surface_list.first, *surf_next; surf; surf = surf_next) {
     surf_next = surf->next;
     wm_surface_remove(surf);

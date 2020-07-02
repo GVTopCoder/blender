@@ -31,20 +31,20 @@
 #include "BLI_ghash.h"
 #include "BLI_math_vector.h"
 
-#include "DNA_meshdata_types.h"
-#include "DNA_scene_types.h"
-#include "DNA_object_types.h"
-#include "DNA_gpencil_types.h"
 #include "DNA_gpencil_modifier_types.h"
+#include "DNA_gpencil_types.h"
+#include "DNA_meshdata_types.h"
+#include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
+#include "BKE_colortools.h"
 #include "BKE_deform.h"
-#include "BKE_main.h"
-#include "BKE_object.h"
-#include "BKE_lattice.h"
-#include "BKE_material.h"
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
-#include "BKE_colortools.h"
+#include "BKE_lattice.h"
+#include "BKE_main.h"
+#include "BKE_material.h"
+#include "BKE_object.h"
 
 #include "DEG_depsgraph.h"
 
@@ -72,13 +72,14 @@ void gpencil_modifier_type_init(GpencilModifierTypeInfo *types[])
   INIT_GP_TYPE(Armature);
   INIT_GP_TYPE(Time);
   INIT_GP_TYPE(Multiply);
+  INIT_GP_TYPE(Texture);
 #undef INIT_GP_TYPE
 }
 
 /* verify if valid layer, material and pass index */
 bool is_stroke_affected_by_modifier(Object *ob,
                                     char *mlayername,
-                                    char *mmaterialname,
+                                    Material *material,
                                     const int mpassindex,
                                     const int gpl_passindex,
                                     const int minpoints,
@@ -105,15 +106,15 @@ bool is_stroke_affected_by_modifier(Object *ob,
       }
     }
   }
-  /* omit if filter by material */
-  if (mmaterialname[0] != '\0') {
+  /* Omit if filter by material. */
+  if (material != NULL) {
     if (inv4 == false) {
-      if (!STREQ(mmaterialname, ma->id.name + 2)) {
+      if (material != ma) {
         return false;
       }
     }
     else {
-      if (STREQ(mmaterialname, ma->id.name + 2)) {
+      if (material == ma) {
         return false;
       }
     }

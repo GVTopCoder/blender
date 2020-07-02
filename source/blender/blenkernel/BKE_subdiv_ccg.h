@@ -24,8 +24,8 @@
 #ifndef __BKE_SUBDIV_CCG_H__
 #define __BKE_SUBDIV_CCG_H__
 
-#include "BKE_customdata.h"
 #include "BKE_DerivedMesh.h"
+#include "BKE_customdata.h"
 #include "BLI_bitmap.h"
 #include "BLI_sys_types.h"
 
@@ -40,7 +40,7 @@ struct DMFlagMat;
 struct Mesh;
 struct Subdiv;
 
-/* =============================================================================
+/* --------------------------------------------------------------------
  * Masks.
  */
 
@@ -61,7 +61,7 @@ typedef struct SubdivCCGMaskEvaluator {
 bool BKE_subdiv_ccg_mask_init_from_paint(SubdivCCGMaskEvaluator *mask_evaluator,
                                          const struct Mesh *mesh);
 
-/* =============================================================================
+/* --------------------------------------------------------------------
  * Materials.
  */
 
@@ -80,7 +80,7 @@ typedef struct SubdivCCGMaterialFlagsEvaluator {
 void BKE_subdiv_ccg_material_flags_init_from_mesh(
     SubdivCCGMaterialFlagsEvaluator *material_flags_evaluator, const struct Mesh *mesh);
 
-/* =============================================================================
+/* --------------------------------------------------------------------
  * SubdivCCG.
  */
 
@@ -214,9 +214,18 @@ typedef struct SubdivCCG {
     /* Corresponds to MULTIRES_HIDDEN_MODIFIED. */
     bool hidden;
   } dirty;
+
+  /* Cached values, are not supposed to be accessed directly. */
+  struct {
+    /* Indexed by face, indicates index of the first grid which corresponds to the face. */
+    int *start_face_grid_index;
+  } cache_;
 } SubdivCCG;
 
-/* Create real hi-res CCG from subdivision.
+/* Create CCG representation of subdivision surface.
+ *
+ * NOTE: CCG stores dense vertices in a grid-like storage. There is no edges or
+ * polygons information's for the high-poly surface.
  *
  * NOTE: Subdiv is expected to be refined and ready for evaluation.
  * NOTE: CCG becomes an owner of subdiv.
@@ -301,6 +310,17 @@ void BKE_subdiv_ccg_neighbor_coords_get(const SubdivCCG *subdiv_ccg,
                                         const SubdivCCGCoord *coord,
                                         const bool include_duplicates,
                                         SubdivCCGNeighbors *r_neighbors);
+
+int BKE_subdiv_ccg_grid_to_face_index(const SubdivCCG *subdiv_ccg, const int grid_index);
+
+/* Get array which is indexed by face index and contains index of a first grid of the face.
+ *
+ * The "ensure" version allocates the mapping if it's not know yet and stores it in the subdiv_ccg
+ * descriptor. This function is NOT safe for threading.
+ *
+ * The "get" version simply returns cached array. */
+const int *BKE_subdiv_ccg_start_face_grid_index_ensure(SubdivCCG *subdiv_ccg);
+const int *BKE_subdiv_ccg_start_face_grid_index_get(const SubdivCCG *subdiv_ccg);
 
 #ifdef __cplusplus
 }

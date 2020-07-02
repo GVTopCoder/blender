@@ -28,8 +28,8 @@
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
-#include "DNA_modifier_types.h"
 #include "DNA_fluid_types.h"
+#include "DNA_modifier_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -99,6 +99,7 @@ static void create_color_ramp(const struct ColorBand *coba, float *data)
 {
   for (int i = 0; i < TFUNC_WIDTH; i++) {
     BKE_colorband_evaluate(coba, (float)i / TFUNC_WIDTH, &data[i * 4]);
+    straight_to_premul_v4(&data[i * 4]);
   }
 }
 
@@ -115,7 +116,7 @@ static GPUTexture *create_transfer_function(int type, const struct ColorBand *co
       break;
   }
 
-  GPUTexture *tex = GPU_texture_create_1d(TFUNC_WIDTH, GPU_RGBA8, data, NULL);
+  GPUTexture *tex = GPU_texture_create_1d(TFUNC_WIDTH, GPU_SRGB8_A8, data, NULL);
 
   MEM_freeN(data);
 

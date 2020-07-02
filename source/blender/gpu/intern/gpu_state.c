@@ -29,9 +29,9 @@
 
 #include "BKE_global.h"
 
+#include "GPU_extensions.h"
 #include "GPU_glew.h"
 #include "GPU_state.h"
-#include "GPU_extensions.h"
 
 static GLenum gpu_get_gl_blendfunction(eGPUBlendFunction blend)
 {
@@ -208,7 +208,7 @@ typedef struct {
   uint is_cull_face : 1;
   uint is_depth_test : 1;
   uint is_dither : 1;
-  uint is_lighting : 1;
+  /* uint is_lighting : 1; */ /* UNUSED */
   uint is_line_smooth : 1;
   uint is_color_logic_op : 1;
   uint is_multisample : 1;
@@ -218,6 +218,7 @@ typedef struct {
   uint is_sample_alpha_to_coverage : 1;
   uint is_scissor_test : 1;
   uint is_stencil_test : 1;
+  uint is_framebuffer_srgb : 1;
 
   bool is_clip_plane[6];
 
@@ -294,6 +295,7 @@ void gpuPushAttr(eGPUAttrMask mask)
   if ((mask & GPU_VIEWPORT_BIT) != 0) {
     glGetDoublev(GL_DEPTH_RANGE, (GLdouble *)&Attr.near_far);
     glGetIntegerv(GL_VIEWPORT, (GLint *)&Attr.viewport);
+    Attr.is_framebuffer_srgb = glIsEnabled(GL_FRAMEBUFFER_SRGB);
   }
 
   if ((mask & GPU_BLEND_BIT) != 0) {
@@ -352,6 +354,7 @@ void gpuPopAttr(void)
   if ((mask & GPU_VIEWPORT_BIT) != 0) {
     glViewport(Attr.viewport[0], Attr.viewport[1], Attr.viewport[2], Attr.viewport[3]);
     glDepthRange(Attr.near_far[0], Attr.near_far[1]);
+    restore_mask(GL_FRAMEBUFFER_SRGB, Attr.is_framebuffer_srgb);
   }
 
   if ((mask & GPU_SCISSOR_BIT) != 0) {
@@ -366,5 +369,45 @@ void gpuPopAttr(void)
 
 #undef Attr
 #undef AttrStack
+
+/* Default OpenGL State
+ *
+ * This is called on startup, for opengl offscreen render.
+ * Generally we should always return to this state when
+ * temporarily modifying the state for drawing, though that are (undocumented)
+ * exceptions that we should try to get rid of. */
+
+void GPU_state_init(void)
+{
+  GPU_program_point_size(false);
+
+  glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+  glDisable(GL_BLEND);
+  glDisable(GL_DEPTH_TEST);
+  glDisable(GL_COLOR_LOGIC_OP);
+  glDisable(GL_STENCIL_TEST);
+  glDisable(GL_DITHER);
+
+  glDepthFunc(GL_LEQUAL);
+  glDepthRange(0.0, 1.0);
+
+  glFrontFace(GL_CCW);
+  glCullFace(GL_BACK);
+  glDisable(GL_CULL_FACE);
+
+  /* Is default but better be explicit. */
+  glEnable(GL_MULTISAMPLE);
+
+  /* This is a bit dangerous since addons could change this. */
+  glEnable(GL_PRIMITIVE_RESTART);
+  glPrimitiveRestartIndex((GLuint)0xFFFFFFFF);
+
+  /* TODO: Should become default. But needs at least GL 4.3 */
+  if (GLEW_ARB_ES3_compatibility) {
+    /* Takes predecence over GL_PRIMITIVE_RESTART */
+    glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+  }
+}
 
 /** \} */

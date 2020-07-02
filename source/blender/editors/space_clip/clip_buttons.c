@@ -21,8 +21,8 @@
  * \ingroup spclip
  */
 
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -30,17 +30,17 @@
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_path_util.h"
 #include "BLI_string.h"
+#include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
 
 #include "BKE_context.h"
-#include "BKE_screen.h"
 #include "BKE_movieclip.h"
+#include "BKE_screen.h"
 #include "BKE_tracking.h"
 
 #include "DEG_depsgraph.h"
@@ -57,8 +57,8 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
-#include "IMB_imbuf_types.h"
 #include "IMB_imbuf.h"
+#include "IMB_imbuf_types.h"
 
 #include "clip_intern.h" /* own include */
 
@@ -872,7 +872,7 @@ void uiTemplateMovieclipInformation(uiLayout *layout,
 
     if (framenr <= clip->len) {
       BKE_movieclip_filename_for_frame(clip, user, filepath);
-      file = BLI_last_slash(filepath);
+      file = BLI_path_slash_rfind(filepath);
     }
     else {
       file = "-";

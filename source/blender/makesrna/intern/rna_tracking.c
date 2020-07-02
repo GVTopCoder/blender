@@ -18,8 +18,8 @@
  * \ingroup RNA
  */
 
-#include <stdlib.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -43,6 +43,7 @@
 
 #  include "DNA_anim_types.h"
 
+#  include "BKE_anim_data.h"
 #  include "BKE_animsys.h"
 #  include "BKE_node.h"
 
@@ -833,22 +834,22 @@ static const EnumPropertyItem tracker_motion_model[] = {
     {TRACK_MOTION_MODEL_TRANSLATION_ROTATION_SCALE,
      "LocRotScale",
      0,
-     "LocRotScale",
+     "Location, Rotation & Scale",
      "Search for markers that are translated, rotated, and scaled between frames"},
     {TRACK_MOTION_MODEL_TRANSLATION_SCALE,
      "LocScale",
      0,
-     "LocScale",
+     "Location & Scale",
      "Search for markers that are translated and scaled between frames"},
     {TRACK_MOTION_MODEL_TRANSLATION_ROTATION,
      "LocRot",
      0,
-     "LocRot",
+     "Location & Rotation",
      "Search for markers that are translated and rotated between frames"},
     {TRACK_MOTION_MODEL_TRANSLATION,
      "Loc",
      0,
-     "Loc",
+     "Location",
      "Search for markers that are translated between frames"},
     {0, NULL, 0, NULL, NULL},
 };
@@ -1148,6 +1149,7 @@ static void rna_def_trackingCamera(BlenderRNA *brna)
        "Divisions",
        "Division distortion model which "
        "better represents wide-angle cameras"},
+      {TRACKING_DISTORTION_MODEL_NUKE, "NUKE", 0, "Nuke", "Nuke distortion model"},
       {0, NULL, 0, NULL, NULL},
   };
 
@@ -1249,6 +1251,19 @@ static void rna_def_trackingCamera(BlenderRNA *brna)
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_range(prop, -10, 10, 0.1, 3);
   RNA_def_property_ui_text(prop, "K2", "First coefficient of second order division distortion");
+  RNA_def_property_update(prop, NC_MOVIECLIP | NA_EDITED, "rna_tracking_flushUpdate");
+
+  /* Nuke distortion parameters */
+  prop = RNA_def_property(srna, "nuke_k1", PROP_FLOAT, PROP_NONE);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+  RNA_def_property_ui_range(prop, -10, 10, 0.1, 3);
+  RNA_def_property_ui_text(prop, "K1", "First coefficient of second order Nuke distortion");
+  RNA_def_property_update(prop, NC_MOVIECLIP | NA_EDITED, "rna_tracking_flushUpdate");
+
+  prop = RNA_def_property(srna, "nuke_k2", PROP_FLOAT, PROP_NONE);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+  RNA_def_property_ui_range(prop, -10, 10, 0.1, 3);
+  RNA_def_property_ui_text(prop, "K2", "Second coefficient of second order Nuke distortion");
   RNA_def_property_update(prop, NC_MOVIECLIP | NA_EDITED, "rna_tracking_flushUpdate");
 
   /* pixel aspect */

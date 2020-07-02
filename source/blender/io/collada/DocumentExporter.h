@@ -21,13 +21,11 @@
 #ifndef __DOCUMENTEXPORTER_H__
 #define __DOCUMENTEXPORTER_H__
 
+#include "BlenderContext.h"
 #include "collada.h"
 #include "collada_utils.h"
-#include "BlenderContext.h"
 
-extern "C" {
 #include "DNA_customdata_types.h"
-}
 
 class DocumentExporter {
  public:

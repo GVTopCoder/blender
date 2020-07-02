@@ -38,8 +38,8 @@
 #include "BKE_idprop.h"
 #include "BKE_screen.h"
 
-#include "ED_screen.h"
 #include "ED_keyframing.h"
+#include "ED_screen.h"
 
 #include "UI_interface.h"
 
@@ -561,7 +561,7 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
     const bool is_array_component = (is_array && but->rnaindex != -1);
     const bool is_whole_array = (is_array && but->rnaindex == -1);
 
-    const int override_status = RNA_property_override_library_status(ptr, prop, -1);
+    const uint override_status = RNA_property_override_library_status(ptr, prop, -1);
     const bool is_overridable = (override_status & RNA_OVERRIDE_STATUS_OVERRIDABLE) != 0;
 
     /* Set the (button_pointer, button_prop)
@@ -962,7 +962,7 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
     const PropertyType prop_type = RNA_property_type(but->rnaprop);
     if (((prop_type == PROP_POINTER) ||
          (prop_type == PROP_STRING && but->type == UI_BTYPE_SEARCH_MENU &&
-          but->search_func == ui_rna_collection_search_cb)) &&
+          but->search->update_fn == ui_rna_collection_search_update_fn)) &&
         ui_jump_to_target_button_poll(C)) {
       uiItemO(layout,
               CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Jump to Target"),
@@ -1231,9 +1231,9 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 /**
  * menu to show when right clicking on the panel header
  */
-void ui_popup_context_menu_for_panel(bContext *C, ARegion *region, Panel *pa)
+void ui_popup_context_menu_for_panel(bContext *C, ARegion *region, Panel *panel)
 {
-  bScreen *sc = CTX_wm_screen(C);
+  bScreen *screen = CTX_wm_screen(C);
   const bool has_panel_category = UI_panel_category_is_visible(region);
   const bool any_item_visible = has_panel_category;
   PointerRNA ptr;
@@ -1243,11 +1243,11 @@ void ui_popup_context_menu_for_panel(bContext *C, ARegion *region, Panel *pa)
   if (!any_item_visible) {
     return;
   }
-  if (pa->type->parent != NULL) {
+  if (panel->type->parent != NULL) {
     return;
   }
 
-  RNA_pointer_create(&sc->id, &RNA_Panel, pa, &ptr);
+  RNA_pointer_create(&screen->id, &RNA_Panel, panel, &ptr);
 
   pup = UI_popup_menu_begin(C, IFACE_("Panel"), ICON_NONE);
   layout = UI_popup_menu_layout(pup);

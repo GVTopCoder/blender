@@ -28,38 +28,39 @@
 
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
-#include "DNA_constraint_types.h"
-#include "DNA_camera_types.h"
 #include "DNA_cachefile_types.h"
+#include "DNA_camera_types.h"
 #include "DNA_collection_types.h"
+#include "DNA_constraint_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_light_types.h"
+#include "DNA_lightprobe_types.h"
+#include "DNA_linestyle_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
-#include "DNA_lightprobe_types.h"
+#include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_pointcloud_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_sequence_types.h"
+#include "DNA_simulation_types.h"
+#include "DNA_speaker_types.h"
 #include "DNA_volume_types.h"
 #include "DNA_world_types.h"
-#include "DNA_sequence_types.h"
-#include "DNA_speaker_types.h"
-#include "DNA_object_types.h"
-#include "DNA_linestyle_types.h"
 
 #include "BLI_blenlib.h"
-#include "BLI_listbase.h"
-#include "BLI_utildefines.h"
-#include "BLI_mempool.h"
 #include "BLI_fnmatch.h"
+#include "BLI_listbase.h"
+#include "BLI_mempool.h"
+#include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
 
-#include "BKE_fcurve.h"
-#include "BKE_idcode.h"
+#include "BKE_fcurve_driver.h"
+#include "BKE_idtype.h"
 #include "BKE_layer.h"
 #include "BKE_lib_id.h"
 #include "BKE_main.h"
@@ -233,6 +234,17 @@ static TreeElement *outliner_add_element(
     SpaceOutliner *soops, ListBase *lb, void *idv, TreeElement *parent, short type, short index);
 
 /* -------------------------------------------------------- */
+
+/**
+ * Check if an element type needs a full rebuild if the open/collapsed state changes.
+ * These element types don't add children if collapsed.
+ *
+ * This current check isn't great really. A per element-type flag would be preferable.
+ */
+bool outliner_element_needs_rebuild_on_open_change(const TreeStoreElem *tselem)
+{
+  return ELEM(tselem->type, TSE_RNA_STRUCT, TSE_RNA_PROPERTY, TSE_KEYMAP);
+}
 
 /* special handling of hierarchical non-lib data */
 static void outliner_add_bone(
@@ -537,7 +549,7 @@ static void outliner_add_id_contents(SpaceOutliner *soops,
   /* expand specific data always */
   switch (GS(id->name)) {
     case ID_LI: {
-      te->name = ((Library *)id)->name;
+      te->name = ((Library *)id)->filepath;
       break;
     }
     case ID_SCE: {
@@ -773,13 +785,25 @@ static void outliner_add_id_contents(SpaceOutliner *soops,
         outliner_add_element(soops, &te->subtree, volume, te, TSE_ANIM_DATA, 0);
       break;
     }
+    case ID_SIM: {
+      Simulation *simulation = (Simulation *)id;
+      if (outliner_animdata_test(simulation->adt)) {
+        outliner_add_element(soops, &te->subtree, simulation, te, TSE_ANIM_DATA, 0);
+      }
+      break;
+    }
     default:
       break;
   }
 }
 
-// TODO: this function needs to be split up! It's getting a bit too large...
-// Note: "ID" is not always a real ID
+/**
+ * TODO: this function needs to be split up! It's getting a bit too large...
+ *
+ * \note: "ID" is not always a real ID
+ * \note: If child items are only added to the tree if the item is open, the TSE_ type _must_ be
+ *        added to #outliner_element_needs_rebuild_on_open_change().
+ */
 static TreeElement *outliner_add_element(
     SpaceOutliner *soops, ListBase *lb, void *idv, TreeElement *parent, short type, short index)
 {
@@ -846,7 +870,7 @@ static TreeElement *outliner_add_element(
   else {
     /* do here too, for blend file viewer, own ID_LI then shows file name */
     if (GS(id->name) == ID_LI) {
-      te->name = ((Library *)id)->name;
+      te->name = ((Library *)id)->filepath;
     }
     else {
       te->name = id->name + 2;  // default, can be overridden by Library or non-ID data
@@ -1237,7 +1261,7 @@ static void outliner_add_seq_dup(SpaceOutliner *soops, Sequence *seq, TreeElemen
 
 static const char *outliner_idcode_to_plural(short idcode)
 {
-  const char *propname = BKE_idcode_to_name_plural(idcode);
+  const char *propname = BKE_idtype_idcode_to_name_plural(idcode);
   PropertyRNA *prop = RNA_struct_type_find_property(&RNA_BlendData, propname);
   return (prop) ? RNA_property_ui_name(prop) : "UNKNOWN";
 }
@@ -1254,7 +1278,7 @@ static bool outliner_library_id_show(Library *lib, ID *id, short filter_id_type)
     Collection *collection = (Collection *)id;
     bool has_non_scene_parent = false;
 
-    for (CollectionParent *cparent = collection->parents.first; cparent; cparent = cparent->next) {
+    LISTBASE_FOREACH (CollectionParent *, cparent, &collection->parents) {
       if (!(cparent->collection->flag & COLLECTION_IS_MASTER)) {
         has_non_scene_parent = true;
       }
@@ -1387,7 +1411,7 @@ static void outliner_add_orphaned_datablocks(Main *mainvar, SpaceOutliner *soops
 static void outliner_add_layer_collection_objects(
     SpaceOutliner *soops, ListBase *tree, ViewLayer *layer, LayerCollection *lc, TreeElement *ten)
 {
-  for (CollectionObject *cob = lc->collection->gobject.first; cob; cob = cob->next) {
+  LISTBASE_FOREACH (CollectionObject *, cob, &lc->collection->gobject) {
     Base *base = BKE_view_layer_base_find(layer, cob->ob);
     TreeElement *te_object = outliner_add_element(soops, tree, base->object, ten, 0, 0);
     te_object->directdata = base;
@@ -1405,7 +1429,7 @@ static void outliner_add_layer_collections_recursive(SpaceOutliner *soops,
                                                      TreeElement *parent_ten,
                                                      const bool show_objects)
 {
-  for (LayerCollection *lc = layer_collections->first; lc; lc = lc->next) {
+  LISTBASE_FOREACH (LayerCollection *, lc, layer_collections) {
     const bool exclude = (lc->flag & LAYER_COLLECTION_EXCLUDE) != 0;
     TreeElement *ten;
 
@@ -1419,9 +1443,9 @@ static void outliner_add_layer_collections_recursive(SpaceOutliner *soops,
       ten->name = id->name + 2;
       ten->directdata = lc;
 
-      /* Open by default. */
+      /* Open by default, except linked collections, which may contain many elements. */
       TreeStoreElem *tselem = TREESTORE(ten);
-      if (!tselem->used) {
+      if (!(tselem->used || ID_IS_LINKED(id) || ID_IS_OVERRIDE_LIBRARY(id))) {
         tselem->flag &= ~TSE_CLOSED;
       }
 
@@ -1468,7 +1492,7 @@ BLI_INLINE void outliner_add_collection_objects(SpaceOutliner *soops,
                                                 Collection *collection,
                                                 TreeElement *parent)
 {
-  for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+  LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
     outliner_add_element(soops, tree, cob->ob, parent, 0, 0);
   }
 }
@@ -1479,7 +1503,7 @@ static TreeElement *outliner_add_collection_recursive(SpaceOutliner *soops,
 {
   outliner_add_collection_init(ten, collection);
 
-  for (CollectionChild *child = collection->children.first; child; child = child->next) {
+  LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
     outliner_add_element(soops, &ten->subtree, &child->collection->id, ten, 0, 0);
   }
 
@@ -1542,7 +1566,7 @@ static void outliner_make_object_parent_hierarchy_collections(SpaceOutliner *soo
       continue;
     }
 
-    for (LinkData *link = parent_ob_tree_elements->first; link; link = link->next) {
+    LISTBASE_FOREACH (LinkData *, link, parent_ob_tree_elements) {
       TreeElement *parent_ob_tree_element = link->data;
       TreeElement *parent_ob_collection_tree_element = NULL;
       bool found = false;
@@ -1556,8 +1580,7 @@ static void outliner_make_object_parent_hierarchy_collections(SpaceOutliner *soo
         parent_ob_collection_tree_element = parent_ob_collection_tree_element->parent;
       }
 
-      for (LinkData *link_iter = child_ob_tree_elements->first; link_iter;
-           link_iter = link_iter->next) {
+      LISTBASE_FOREACH (LinkData *, link_iter, child_ob_tree_elements) {
         TreeElement *child_ob_tree_element = link_iter->data;
 
         if (child_ob_tree_element->parent == parent_ob_collection_tree_element) {
@@ -1589,7 +1612,7 @@ static void outliner_make_object_parent_hierarchy_collections(SpaceOutliner *soo
 static void outliner_object_tree_elements_lookup_create_recursive(GHash *object_tree_elements_hash,
                                                                   TreeElement *te_parent)
 {
-  for (TreeElement *te = te_parent->subtree.first; te; te = te->next) {
+  LISTBASE_FOREACH (TreeElement *, te, &te_parent->subtree) {
     TreeStoreElem *tselem = TREESTORE(te);
 
     if (tselem->type == TSE_LAYER_COLLECTION) {
@@ -2333,8 +2356,10 @@ void outliner_build_tree(
 
     for (lib = mainvar->libraries.first; lib; lib = lib->id.next) {
       ten = outliner_add_library_contents(mainvar, soops, &soops->tree, lib);
-      BLI_assert(ten != NULL);
-      lib->id.newid = (ID *)ten;
+      /* NULL-check matters, due to filtering there may not be a new element. */
+      if (ten) {
+        lib->id.newid = (ID *)ten;
+      }
     }
     /* make hierarchy */
     ten = soops->tree.first;
@@ -2427,7 +2452,7 @@ void outliner_build_tree(
   else if (soops->outlinevis == SO_VIEW_LAYER) {
     if (soops->filter & SO_FILTER_NO_COLLECTION) {
       /* Show objects in the view layer. */
-      for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+      LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
         TreeElement *te_object = outliner_add_element(
             soops, &soops->tree, base->object, NULL, 0, 0);
         te_object->directdata = base;

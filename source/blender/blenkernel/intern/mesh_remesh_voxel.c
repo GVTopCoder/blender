@@ -21,12 +21,12 @@
  * \ingroup bke
  */
 
+#include <ctype.h>
+#include <float.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <time.h>
-#include <float.h>
-#include <ctype.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -34,17 +34,17 @@
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
-#include "DNA_object_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_object_types.h"
 
-#include "BKE_editmesh.h"
-#include "BKE_mesh.h"
-#include "BKE_mesh_runtime.h"
-#include "BKE_lib_id.h"
-#include "BKE_customdata.h"
 #include "BKE_bvhutils.h"
+#include "BKE_customdata.h"
+#include "BKE_editmesh.h"
+#include "BKE_lib_id.h"
+#include "BKE_mesh.h"
 #include "BKE_mesh_remesh_voxel.h" /* own include */
+#include "BKE_mesh_runtime.h"
 
 #include "bmesh_tools.h"
 
@@ -400,6 +400,37 @@ void BKE_remesh_reproject_sculpt_face_sets(Mesh *target, Mesh *source)
     }
     else {
       target_face_sets[i] = 1;
+    }
+  }
+  free_bvhtree_from_mesh(&bvhtree);
+}
+
+void BKE_remesh_reproject_vertex_paint(Mesh *target, Mesh *source)
+{
+  BVHTreeFromMesh bvhtree = {
+      .nearest_callback = NULL,
+  };
+  BKE_bvhtree_from_mesh_get(&bvhtree, source, BVHTREE_FROM_VERTS, 2);
+
+  int tot_color_layer = CustomData_number_of_layers(&source->vdata, CD_PROP_COLOR);
+
+  for (int layer_n = 0; layer_n < tot_color_layer; layer_n++) {
+    const char *layer_name = CustomData_get_layer_name(&source->vdata, CD_PROP_COLOR, layer_n);
+    CustomData_add_layer_named(
+        &target->vdata, CD_PROP_COLOR, CD_CALLOC, NULL, target->totvert, layer_name);
+
+    MPropCol *target_color = CustomData_get_layer_n(&target->vdata, CD_PROP_COLOR, layer_n);
+    MVert *target_verts = CustomData_get_layer(&target->vdata, CD_MVERT);
+    MPropCol *source_color = CustomData_get_layer_n(&source->vdata, CD_PROP_COLOR, layer_n);
+    for (int i = 0; i < target->totvert; i++) {
+      BVHTreeNearest nearest;
+      nearest.index = -1;
+      nearest.dist_sq = FLT_MAX;
+      BLI_bvhtree_find_nearest(
+          bvhtree.tree, target_verts[i].co, &nearest, bvhtree.nearest_callback, &bvhtree);
+      if (nearest.index != -1) {
+        copy_v4_v4(target_color[i].color, source_color[nearest.index].color);
+      }
     }
   }
   free_bvhtree_from_mesh(&bvhtree);

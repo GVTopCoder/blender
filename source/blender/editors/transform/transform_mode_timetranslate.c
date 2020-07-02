@@ -29,7 +29,6 @@
 #include "BLI_string.h"
 
 #include "BKE_context.h"
-#include "BKE_nla.h"
 #include "BKE_unit.h"
 
 #include "ED_screen.h"
@@ -40,8 +39,8 @@
 #include "BLT_translation.h"
 
 #include "transform.h"
-#include "transform_snap.h"
 #include "transform_mode.h"
+#include "transform_snap.h"
 
 /* -------------------------------------------------------------------- */
 /* Transform (Animation Translation) */
@@ -136,7 +135,7 @@ static void applyTimeTranslate(TransInfo *t, const int mval[2])
 
   recalcData(t);
 
-  ED_area_status_text(t->sa, str);
+  ED_area_status_text(t->area, str);
 }
 
 void initTimeTranslate(TransInfo *t)

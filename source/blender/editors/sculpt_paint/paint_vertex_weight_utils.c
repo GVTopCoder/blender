@@ -33,9 +33,9 @@
 #include "BKE_deform.h"
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
+#include "BKE_object.h"
 #include "BKE_object_deform.h"
 #include "BKE_report.h"
-#include "BKE_object.h"
 
 #include "DEG_depsgraph_build.h"
 
@@ -82,7 +82,7 @@ bool ED_wpaint_ensure_data(bContext *C,
   /* this happens on a Bone select, when no vgroup existed yet */
   if (ob->actdef <= 0) {
     Object *modob;
-    if ((modob = modifiers_isDeformedByArmature(ob))) {
+    if ((modob = BKE_modifiers_is_deformed_by_armature(ob))) {
       Bone *actbone = ((bArmature *)modob->data)->act_bone;
       if (actbone) {
         bPoseChannel *pchan = BKE_pose_channel_find_name(modob->pose, actbone->name);

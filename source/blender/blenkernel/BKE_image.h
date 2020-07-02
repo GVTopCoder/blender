@@ -23,11 +23,11 @@
  * \ingroup bke
  */
 
+#include "BLI_utildefines.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "BLI_utildefines.h"
 
 struct Depsgraph;
 struct ID;
@@ -318,16 +318,16 @@ bool BKE_image_fill_tile(struct Image *ima,
                          bool is_float);
 
 struct ImageTile *BKE_image_get_tile(struct Image *ima, int tile_number);
-struct ImageTile *BKE_image_get_tile_from_iuser(struct Image *ima, struct ImageUser *iuser);
+struct ImageTile *BKE_image_get_tile_from_iuser(struct Image *ima, const struct ImageUser *iuser);
 
 int BKE_image_get_tile_from_pos(struct Image *ima,
                                 const float uv[2],
-                                float new_uv[2],
-                                float ofs[2]);
+                                float r_uv[2],
+                                float r_ofs[2]);
 
-void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *width, int *height);
-void BKE_image_get_size_fl(struct Image *image, struct ImageUser *iuser, float size[2]);
-void BKE_image_get_aspect(struct Image *image, float *aspx, float *aspy);
+void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *r_width, int *r_height);
+void BKE_image_get_size_fl(struct Image *image, struct ImageUser *iuser, float r_size[2]);
+void BKE_image_get_aspect(struct Image *image, float *r_aspx, float *r_aspy);
 
 /* image_gen.c */
 void BKE_image_buf_fill_color(

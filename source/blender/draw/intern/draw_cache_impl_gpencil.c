@@ -27,17 +27,18 @@
 
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_geom.h"
 
 #include "DRW_engine.h"
 #include "DRW_render.h"
 
-#include "GPU_batch.h"
 #include "ED_gpencil.h"
+#include "GPU_batch.h"
 
 #include "DEG_depsgraph_query.h"
 
-#include "BLI_polyfill_2d.h"
 #include "BLI_hash.h"
+#include "BLI_polyfill_2d.h"
 
 #include "draw_cache.h"
 #include "draw_cache_impl.h"
@@ -61,8 +62,6 @@ typedef struct GpencilBatchCache {
 
   /** Cache is dirty */
   bool is_dirty;
-  /** Edit mode flag */
-  bool is_editmode;
   /** Last cache frame */
   int cache_frame;
 } GpencilBatchCache;
@@ -70,19 +69,15 @@ typedef struct GpencilBatchCache {
 static bool gpencil_batch_cache_valid(GpencilBatchCache *cache, bGPdata *gpd, int cfra)
 {
   bool valid = true;
+
   if (cache == NULL) {
     return false;
   }
 
-  cache->is_editmode = GPENCIL_ANY_EDIT_MODE(gpd);
   if (cfra != cache->cache_frame) {
     valid = false;
   }
   else if (gpd->flag & GP_DATA_CACHE_IS_DIRTY) {
-    valid = false;
-  }
-  else if (gpd->flag & GP_DATA_PYTHON_UPDATED) {
-    gpd->flag &= ~GP_DATA_PYTHON_UPDATED;
     valid = false;
   }
   else if (cache->is_dirty) {
@@ -105,9 +100,9 @@ static GpencilBatchCache *gpencil_batch_cache_init(Object *ob, int cfra)
     memset(cache, 0, sizeof(*cache));
   }
 
-  cache->is_editmode = GPENCIL_ANY_EDIT_MODE(gpd);
   cache->is_dirty = true;
   cache->cache_frame = cfra;
+
   return cache;
 }
 
@@ -180,7 +175,8 @@ static GPUVertFormat *gpencil_stroke_format(void)
     GPU_vertformat_attr_add(&format, "ma", GPU_COMP_I32, 4, GPU_FETCH_INT);
     GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
     GPU_vertformat_attr_add(&format, "uv", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-    /* IMPORTANT: This means having only 4 attributes to fit into GPU module limit of 16 attrib. */
+    /* IMPORTANT: This means having only 4 attributes
+     * to fit into GPU module limit of 16 attributes. */
     GPU_vertformat_multiload_enable(&format, 4);
   }
   return &format;
@@ -214,7 +210,8 @@ static GPUVertFormat *gpencil_color_format(void)
   if (format.attr_len == 0) {
     GPU_vertformat_attr_add(&format, "col", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
     GPU_vertformat_attr_add(&format, "fcol", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-    /* IMPORTANT: This means having only 4 attributes to fit into GPU module limit of 16 attrib. */
+    /* IMPORTANT: This means having only 4 attributes
+     * to fit into GPU module limit of 16 attributes. */
     GPU_vertformat_multiload_enable(&format, 4);
   }
   return &format;
@@ -295,7 +292,7 @@ static void gpencil_buffer_add_point(gpStrokeVert *verts,
   vert->u_stroke = pt->uv_fac;
   vert->stroke_id = gps->runtime.stroke_start;
   vert->point_id = v;
-  vert->thickness = max_ff(0.0f, gps->thickness * pt->pressure) * (round_cap1 ? 1.0 : -1.0);
+  vert->thickness = max_ff(0.0f, gps->thickness * pt->pressure) * (round_cap1 ? 1.0f : -1.0f);
   /* Tag endpoint material to -1 so they get discarded by vertex shader. */
   vert->mat = (is_endpoint) ? -1 : (gps->mat_nr % GP_MATERIAL_BUFFER_LEN);
 
@@ -352,10 +349,10 @@ static void gpencil_stroke_iter_cb(bGPDlayer *UNUSED(gpl),
   }
 }
 
-static void gp_object_verts_count_cb(bGPDlayer *UNUSED(gpl),
-                                     bGPDframe *UNUSED(gpf),
-                                     bGPDstroke *gps,
-                                     void *thunk)
+static void gpencil_object_verts_count_cb(bGPDlayer *UNUSED(gpl),
+                                          bGPDframe *UNUSED(gpf),
+                                          bGPDstroke *gps,
+                                          void *thunk)
 {
   gpIterData *iter = (gpIterData *)thunk;
 
@@ -389,7 +386,8 @@ static void gpencil_batches_ensure(Object *ob, GpencilBatchCache *cache, int cfr
         .vert_len = 1, /* Start at 1 for the gl_InstanceID trick to work (see vert shader). */
         .tri_len = 0,
     };
-    BKE_gpencil_visible_stroke_iter(ob, NULL, gp_object_verts_count_cb, &iter, do_onion, cfra);
+    BKE_gpencil_visible_stroke_iter(
+        NULL, ob, NULL, gpencil_object_verts_count_cb, &iter, do_onion, cfra);
 
     /* Create VBOs. */
     GPUVertFormat *format = gpencil_stroke_format();
@@ -405,7 +403,7 @@ static void gpencil_batches_ensure(Object *ob, GpencilBatchCache *cache, int cfr
     GPU_indexbuf_init(&iter.ibo, GPU_PRIM_TRIS, iter.tri_len, iter.vert_len);
 
     /* Fill buffers with data. */
-    BKE_gpencil_visible_stroke_iter(ob, NULL, gpencil_stroke_iter_cb, &iter, do_onion, cfra);
+    BKE_gpencil_visible_stroke_iter(NULL, ob, NULL, gpencil_stroke_iter_cb, &iter, do_onion, cfra);
 
     /* Mark last 2 verts as invalid. */
     for (int i = 0; i < 2; i++) {
@@ -443,10 +441,10 @@ GPUBatch *DRW_cache_gpencil_fills_get(Object *ob, int cfra)
   return cache->fill_batch;
 }
 
-static void gp_lines_indices_cb(bGPDlayer *UNUSED(gpl),
-                                bGPDframe *UNUSED(gpf),
-                                bGPDstroke *gps,
-                                void *thunk)
+static void gpencil_lines_indices_cb(bGPDlayer *UNUSED(gpl),
+                                     bGPDframe *UNUSED(gpf),
+                                     bGPDstroke *gps,
+                                     void *thunk)
 {
   gpIterData *iter = (gpIterData *)thunk;
   int pts_len = gps->totpoints + gpencil_stroke_is_cyclic(gps);
@@ -479,7 +477,8 @@ GPUBatch *DRW_cache_gpencil_face_wireframe_get(Object *ob)
 
     /* IMPORTANT: Keep in sync with gpencil_edit_batches_ensure() */
     bool do_onion = true;
-    BKE_gpencil_visible_stroke_iter(ob, NULL, gp_lines_indices_cb, &iter, do_onion, cfra);
+    BKE_gpencil_visible_stroke_iter(
+        NULL, ob, NULL, gpencil_lines_indices_cb, &iter, do_onion, cfra);
 
     GPUIndexBuf *ibo = GPU_indexbuf_build(&iter.ibo);
 
@@ -541,15 +540,14 @@ static void gpencil_sbuffer_stroke_ensure(bGPdata *gpd, bool do_stroke, bool do_
 
     /* Get origin to reproject points. */
     float origin[3];
-    bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
     ToolSettings *ts = scene->toolsettings;
-    ED_gpencil_drawing_reference_get(scene, ob, gpl, ts->gpencil_v3d_align, origin);
+    ED_gpencil_drawing_reference_get(scene, ob, ts->gpencil_v3d_align, origin);
 
     for (int i = 0; i < vert_len; i++) {
       ED_gpencil_tpoint_to_point(region, origin, &tpoints[i], &gps->points[i]);
       mul_m4_v3(ob->imat, &gps->points[i].x);
       bGPDspoint *pt = &gps->points[i];
-      copy_v4_v4(pt->vert_color, gpd->runtime.vert_color);
+      copy_v4_v4(pt->vert_color, tpoints[i].vert_color);
     }
     /* Calc uv data along the stroke. */
     BKE_gpencil_stroke_uv_update(gps);
@@ -729,7 +727,8 @@ static void gpencil_edit_batches_ensure(Object *ob, GpencilBatchCache *cache, in
     iter.verts = (gpEditVert *)cache->edit_vbo->data;
 
     /* Fill buffers with data. */
-    BKE_gpencil_visible_stroke_iter(ob, NULL, gpencil_edit_stroke_iter_cb, &iter, do_onion, cfra);
+    BKE_gpencil_visible_stroke_iter(
+        NULL, ob, NULL, gpencil_edit_stroke_iter_cb, &iter, do_onion, cfra);
 
     /* Create the batches */
     cache->edit_points_batch = GPU_batch_create(GPU_PRIM_POINTS, cache->vbo, NULL);

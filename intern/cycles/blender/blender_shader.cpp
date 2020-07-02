@@ -24,14 +24,14 @@
 #include "render/shader.h"
 
 #include "blender/blender_image.h"
-#include "blender/blender_texture.h"
 #include "blender/blender_sync.h"
+#include "blender/blender_texture.h"
 #include "blender/blender_util.h"
 
 #include "util/util_debug.h"
 #include "util/util_foreach.h"
-#include "util/util_string.h"
 #include "util/util_set.h"
+#include "util/util_string.h"
 #include "util/util_task.h"
 
 CCL_NAMESPACE_BEGIN
@@ -384,16 +384,16 @@ static ShaderNode *add_node(Scene *scene,
 
     switch (b_aniso_node.distribution()) {
       case BL::ShaderNodeBsdfAnisotropic::distribution_BECKMANN:
-        aniso->distribution = CLOSURE_BSDF_MICROFACET_BECKMANN_ANISO_ID;
+        aniso->distribution = CLOSURE_BSDF_MICROFACET_BECKMANN_ID;
         break;
       case BL::ShaderNodeBsdfAnisotropic::distribution_GGX:
-        aniso->distribution = CLOSURE_BSDF_MICROFACET_GGX_ANISO_ID;
+        aniso->distribution = CLOSURE_BSDF_MICROFACET_GGX_ID;
         break;
       case BL::ShaderNodeBsdfAnisotropic::distribution_MULTI_GGX:
-        aniso->distribution = CLOSURE_BSDF_MICROFACET_MULTI_GGX_ANISO_ID;
+        aniso->distribution = CLOSURE_BSDF_MICROFACET_MULTI_GGX_ID;
         break;
       case BL::ShaderNodeBsdfAnisotropic::distribution_ASHIKHMIN_SHIRLEY:
-        aniso->distribution = CLOSURE_BSDF_ASHIKHMIN_SHIRLEY_ANISO_ID;
+        aniso->distribution = CLOSURE_BSDF_ASHIKHMIN_SHIRLEY_ID;
         break;
     }
 
@@ -813,6 +813,14 @@ static ShaderNode *add_node(Scene *scene,
     sky->sun_direction = normalize(get_float3(b_sky_node.sun_direction()));
     sky->turbidity = b_sky_node.turbidity();
     sky->ground_albedo = b_sky_node.ground_albedo();
+    sky->sun_disc = b_sky_node.sun_disc();
+    sky->sun_size = b_sky_node.sun_size();
+    sky->sun_elevation = b_sky_node.sun_elevation();
+    sky->sun_rotation = b_sky_node.sun_rotation();
+    sky->altitude = b_sky_node.altitude();
+    sky->air_density = b_sky_node.air_density();
+    sky->dust_density = b_sky_node.dust_density();
+    sky->ozone_density = b_sky_node.ozone_density();
     BL::TexMapping b_texture_mapping(b_sky_node.texture_mapping());
     get_tex_mapping(&sky->tex_mapping, b_texture_mapping);
     node = sky;
@@ -1231,12 +1239,11 @@ void BlenderSync::sync_materials(BL::Depsgraph &b_depsgraph, bool update_all)
     Shader *shader;
 
     /* test if we need to sync */
-    if (shader_map.add_or_update(&shader, b_mat) || shader->need_sync_object || update_all) {
+    if (shader_map.add_or_update(&shader, b_mat) || update_all) {
       ShaderGraph *graph = new ShaderGraph();
 
       shader->name = b_mat.name().c_str();
       shader->pass_id = b_mat.pass_index();
-      shader->need_sync_object = false;
 
       /* create nodes */
       if (b_mat.use_nodes() && b_mat.node_tree()) {

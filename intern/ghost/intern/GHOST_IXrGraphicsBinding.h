@@ -33,7 +33,7 @@ class GHOST_IXrGraphicsBinding {
 
  public:
   union {
-#if defined(WITH_X11)
+#if defined(WITH_GHOST_X11)
     XrGraphicsBindingOpenGLXlibKHR glx;
 #elif defined(WIN32)
     XrGraphicsBindingOpenGLWin32KHR wgl;
@@ -56,11 +56,13 @@ class GHOST_IXrGraphicsBinding {
                                         std::string *r_requirement_info) const = 0;
   virtual void initFromGhostContext(class GHOST_Context *ghost_ctx) = 0;
   virtual bool chooseSwapchainFormat(const std::vector<int64_t> &runtime_formats,
-                                     int64_t *r_result) const = 0;
+                                     int64_t &r_result,
+                                     bool &r_is_rgb_format) const = 0;
   virtual std::vector<XrSwapchainImageBaseHeader *> createSwapchainImages(
       uint32_t image_count) = 0;
   virtual void submitToSwapchainImage(XrSwapchainImageBaseHeader *swapchain_image,
                                       const GHOST_XrDrawViewInfo *draw_info) = 0;
+  virtual bool needsUpsideDownDrawing(GHOST_Context &ghost_ctx) const = 0;
 
  protected:
   /* Use GHOST_XrGraphicsBindingCreateFromType! */
@@ -68,6 +70,6 @@ class GHOST_IXrGraphicsBinding {
 };
 
 std::unique_ptr<GHOST_IXrGraphicsBinding> GHOST_XrGraphicsBindingCreateFromType(
-    GHOST_TXrGraphicsBinding type);
+    GHOST_TXrGraphicsBinding type, GHOST_Context *ghost_ctx);
 
 #endif /* __GHOST_IXRGRAPHICSBINDING_H__ */

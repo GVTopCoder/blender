@@ -20,14 +20,14 @@
 
 /* defines VIEW3D_OT_navigate - walk modal operator */
 
-#include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_math.h"
 #include "BLI_blenlib.h"
 #include "BLI_kdopbvh.h"
+#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
@@ -64,6 +64,10 @@
 
 /* ensure the target position is one we can reach, see: T45771 */
 #define USE_PIXELSIZE_NATIVE_SUPPORT
+
+/* -------------------------------------------------------------------- */
+/** \name Modal Key-map
+ * \{ */
 
 /* NOTE: these defines are saved in keymap files,
  * do not change values but just add new ones */
@@ -160,18 +164,24 @@ void walk_modal_keymap(wmKeyConfig *keyconf)
       {0, NULL, 0, NULL, NULL},
   };
 
-  wmKeyMap *keymap = WM_modalkeymap_get(keyconf, "View3D Walk Modal");
+  wmKeyMap *keymap = WM_modalkeymap_find(keyconf, "View3D Walk Modal");
 
   /* this function is called for each spacetype, only needs to add map once */
   if (keymap && keymap->modal_items) {
     return;
   }
 
-  keymap = WM_modalkeymap_add(keyconf, "View3D Walk Modal", modal_items);
+  keymap = WM_modalkeymap_ensure(keyconf, "View3D Walk Modal", modal_items);
 
   /* assign map to operators */
   WM_modalkeymap_assign(keymap, "VIEW3D_OT_walk");
 }
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal Walk Structs
+ * \{ */
 
 typedef struct WalkTeleport {
   eWalkTeleportState state;
@@ -283,6 +293,12 @@ typedef struct WalkInfo {
 
 } WalkInfo;
 
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal Walk Drawing
+ * \{ */
+
 /* prototypes */
 #ifdef WITH_INPUT_NDOF
 static void walkApply_ndof(bContext *C, WalkInfo *walk, bool is_confirm);
@@ -340,6 +356,12 @@ static void drawWalkPixel(const struct bContext *UNUSED(C), ARegion *region, voi
   immUnbindProgram();
 }
 
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal Walk Logic
+ * \{ */
+
 static void walk_navigation_mode_set(WalkInfo *walk, eWalkMethod mode)
 {
   if (mode == WALK_MODE_FREE) {
@@ -374,16 +396,19 @@ static bool walk_floor_distance_get(RegionView3D *rv3d,
   mul_v3_v3fl(dvec_tmp, dvec, walk->grid);
   add_v3_v3(ray_start, dvec_tmp);
 
-  ret = ED_transform_snap_object_project_ray(walk->snap_context,
-                                             walk->depsgraph,
-                                             &(const struct SnapObjectParams){
-                                                 .snap_select = SNAP_ALL,
-                                             },
-                                             ray_start,
-                                             ray_normal,
-                                             r_distance,
-                                             r_location,
-                                             r_normal_dummy);
+  ret = ED_transform_snap_object_project_ray(
+      walk->snap_context,
+      walk->depsgraph,
+      &(const struct SnapObjectParams){
+          .snap_select = SNAP_ALL,
+          /* Avoid having to convert the edit-mesh to a regular mesh. */
+          .use_object_edit_cage = true,
+      },
+      ray_start,
+      ray_normal,
+      r_distance,
+      r_location,
+      r_normal_dummy);
 
   /* artificially scale the distance to the scene size */
   *r_distance /= walk->grid;
@@ -449,7 +474,6 @@ static float userdef_speed = -1.f;
 static bool initWalkInfo(bContext *C, WalkInfo *walk, wmOperator *op)
 {
   wmWindowManager *wm = CTX_wm_manager(C);
-  Main *bmain = CTX_data_main(C);
   wmWindow *win = CTX_wm_window(C);
 
   walk->rv3d = CTX_wm_region_view3d(C);
@@ -553,7 +577,7 @@ static bool initWalkInfo(bContext *C, WalkInfo *walk, wmOperator *op)
   walk->rv3d->rflag |= RV3D_NAVIGATING;
 
   walk->snap_context = ED_transform_snap_object_context_create_view3d(
-      bmain, walk->scene, 0, walk->region, walk->v3d);
+      walk->scene, 0, walk->region, walk->v3d);
 
   walk->v3d_camera_control = ED_view3d_cameracontrol_acquire(
       walk->depsgraph,
@@ -1341,7 +1365,12 @@ static void walkApply_ndof(bContext *C, WalkInfo *walk, bool is_confirm)
 }
 #endif /* WITH_INPUT_NDOF */
 
-/****** walk operator ******/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Walk Operator
+ * \{ */
+
 static int walk_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
   RegionView3D *rv3d = CTX_wm_region_view3d(C);
@@ -1436,3 +1465,5 @@ void VIEW3D_OT_walk(wmOperatorType *ot)
   /* flags */
   ot->flag = OPTYPE_BLOCKING;
 }
+
+/** \} */

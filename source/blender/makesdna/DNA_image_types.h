@@ -24,9 +24,9 @@
 #ifndef __DNA_IMAGE_TYPES_H__
 #define __DNA_IMAGE_TYPES_H__
 
-#include "DNA_defs.h"
 #include "DNA_ID.h"
 #include "DNA_color_types.h" /* for color management */
+#include "DNA_defs.h"
 
 struct GPUTexture;
 struct MovieCache;
@@ -129,7 +129,7 @@ typedef struct Image {
   ID id;
 
   /** File path, 1024 = FILE_MAX. */
-  char name[1024];
+  char filepath[1024];
 
   /** Not written in file. */
   struct MovieCache *cache;

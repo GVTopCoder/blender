@@ -32,33 +32,33 @@
 #include "BLT_translation.h"
 
 #include "DNA_armature_types.h"
+#include "DNA_brush_types.h"
 #include "DNA_collection_types.h"
 #include "DNA_light_types.h"
+#include "DNA_linestyle_types.h"
 #include "DNA_material_types.h"
 #include "DNA_node_types.h"
 #include "DNA_scene_types.h"
-#include "DNA_world_types.h"
-#include "DNA_brush_types.h"
-#include "DNA_linestyle_types.h"
 #include "DNA_windowmanager_types.h"
+#include "DNA_world_types.h"
 
-#include "BKE_context.h"
 #include "BKE_action.h"
+#include "BKE_context.h"
 #include "BKE_layer.h"
+#include "BKE_linestyle.h"
 #include "BKE_material.h"
 #include "BKE_modifier.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_screen.h"
 #include "BKE_texture.h"
-#include "BKE_linestyle.h"
 
 #include "RNA_access.h"
 
-#include "ED_buttons.h"
 #include "ED_armature.h"
-#include "ED_screen.h"
+#include "ED_buttons.h"
 #include "ED_physics.h"
+#include "ED_screen.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -251,14 +251,12 @@ static int buttons_context_path_data(ButsContextPath *path, int type)
   else if (RNA_struct_is_a(ptr->type, &RNA_GreasePencil) && (type == -1 || type == OB_GPENCIL)) {
     return 1;
   }
-#ifdef WITH_NEW_OBJECT_TYPES
   else if (RNA_struct_is_a(ptr->type, &RNA_Hair) && (type == -1 || type == OB_HAIR)) {
     return 1;
   }
   else if (RNA_struct_is_a(ptr->type, &RNA_PointCloud) && (type == -1 || type == OB_POINTCLOUD)) {
     return 1;
   }
-#endif
   else if (RNA_struct_is_a(ptr->type, &RNA_Volume) && (type == -1 || type == OB_VOLUME)) {
     return 1;
   }
@@ -796,10 +794,8 @@ const char *buttons_context_dir[] = {
     "line_style",
     "collection",
     "gpencil",
-#ifdef WITH_NEW_OBJECT_TYPES
     "hair",
     "pointcloud",
-#endif
     "volume",
     NULL,
 };
@@ -878,7 +874,6 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
     set_pointer_type(path, result, &RNA_LightProbe);
     return 1;
   }
-#ifdef WITH_NEW_OBJECT_TYPES
   else if (CTX_data_equals(member, "hair")) {
     set_pointer_type(path, result, &RNA_Hair);
     return 1;
@@ -887,7 +882,6 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
     set_pointer_type(path, result, &RNA_PointCloud);
     return 1;
   }
-#endif
   else if (CTX_data_equals(member, "volume")) {
     set_pointer_type(path, result, &RNA_Volume);
     return 1;
@@ -1041,7 +1035,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 
     if (ptr && ptr->data) {
       Object *ob = ptr->data;
-      ModifierData *md = modifiers_findByType(ob, eModifierType_Cloth);
+      ModifierData *md = BKE_modifiers_findby_type(ob, eModifierType_Cloth);
       CTX_data_pointer_set(result, &ob->id, &RNA_ClothModifier, md);
       return 1;
     }
@@ -1051,7 +1045,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 
     if (ptr && ptr->data) {
       Object *ob = ptr->data;
-      ModifierData *md = modifiers_findByType(ob, eModifierType_Softbody);
+      ModifierData *md = BKE_modifiers_findby_type(ob, eModifierType_Softbody);
       CTX_data_pointer_set(result, &ob->id, &RNA_SoftBodyModifier, md);
       return 1;
     }
@@ -1062,7 +1056,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 
     if (ptr && ptr->data) {
       Object *ob = ptr->data;
-      ModifierData *md = modifiers_findByType(ob, eModifierType_Fluid);
+      ModifierData *md = BKE_modifiers_findby_type(ob, eModifierType_Fluid);
       CTX_data_pointer_set(result, &ob->id, &RNA_FluidModifier, md);
       return 1;
     }
@@ -1072,7 +1066,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 
     if (ptr && ptr->data) {
       Object *ob = ptr->data;
-      ModifierData *md = modifiers_findByType(ob, eModifierType_Collision);
+      ModifierData *md = BKE_modifiers_findby_type(ob, eModifierType_Collision);
       CTX_data_pointer_set(result, &ob->id, &RNA_CollisionModifier, md);
       return 1;
     }
@@ -1086,7 +1080,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 
     if (ptr && ptr->data) {
       Object *ob = ptr->data;
-      ModifierData *md = modifiers_findByType(ob, eModifierType_DynamicPaint);
+      ModifierData *md = BKE_modifiers_findby_type(ob, eModifierType_DynamicPaint);
       CTX_data_pointer_set(result, &ob->id, &RNA_DynamicPaintModifier, md);
       return 1;
     }

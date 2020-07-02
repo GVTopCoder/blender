@@ -18,70 +18,70 @@
  * \ingroup collada
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <vector>
 #include <algorithm>  // std::find
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <vector>
 
-#include "COLLADASWCamera.h"
 #include "COLLADASWAsset.h"
+#include "COLLADASWBaseInputElement.h"
+#include "COLLADASWBindMaterial.h"
+#include "COLLADASWCamera.h"
+#include "COLLADASWColorOrTexture.h"
+#include "COLLADASWConstants.h"
+#include "COLLADASWEffectProfile.h"
+#include "COLLADASWImage.h"
+#include "COLLADASWInputList.h"
+#include "COLLADASWInstanceCamera.h"
+#include "COLLADASWInstanceController.h"
+#include "COLLADASWInstanceGeometry.h"
+#include "COLLADASWInstanceLight.h"
+#include "COLLADASWInstanceNode.h"
+#include "COLLADASWLibraryAnimations.h"
+#include "COLLADASWLibraryControllers.h"
+#include "COLLADASWLibraryEffects.h"
+#include "COLLADASWLibraryImages.h"
+#include "COLLADASWLibraryMaterials.h"
 #include "COLLADASWLibraryVisualScenes.h"
 #include "COLLADASWNode.h"
-#include "COLLADASWSource.h"
-#include "COLLADASWInstanceGeometry.h"
-#include "COLLADASWInputList.h"
-#include "COLLADASWPrimitves.h"
-#include "COLLADASWVertices.h"
-#include "COLLADASWLibraryAnimations.h"
-#include "COLLADASWLibraryImages.h"
-#include "COLLADASWLibraryEffects.h"
-#include "COLLADASWImage.h"
-#include "COLLADASWEffectProfile.h"
-#include "COLLADASWColorOrTexture.h"
-#include "COLLADASWParamTemplate.h"
 #include "COLLADASWParamBase.h"
-#include "COLLADASWSurfaceInitOption.h"
+#include "COLLADASWParamTemplate.h"
+#include "COLLADASWPrimitves.h"
 #include "COLLADASWSampler.h"
 #include "COLLADASWScene.h"
+#include "COLLADASWSource.h"
+#include "COLLADASWSurfaceInitOption.h"
 #include "COLLADASWTechnique.h"
 #include "COLLADASWTexture.h"
-#include "COLLADASWLibraryMaterials.h"
-#include "COLLADASWBindMaterial.h"
-#include "COLLADASWInstanceCamera.h"
-#include "COLLADASWInstanceLight.h"
-#include "COLLADASWConstants.h"
-#include "COLLADASWLibraryControllers.h"
-#include "COLLADASWInstanceController.h"
-#include "COLLADASWInstanceNode.h"
-#include "COLLADASWBaseInputElement.h"
+#include "COLLADASWVertices.h"
 
 #include "MEM_guardedalloc.h"
 
-extern "C" {
-#include "DNA_scene_types.h"
-#include "DNA_object_types.h"
+#include "DNA_action_types.h"
+#include "DNA_anim_types.h"
+#include "DNA_armature_types.h"
 #include "DNA_collection_types.h"
-#include "DNA_meshdata_types.h"
-#include "DNA_mesh_types.h"
+#include "DNA_curve_types.h"
 #include "DNA_image_types.h"
 #include "DNA_material_types.h"
-#include "DNA_anim_types.h"
-#include "DNA_action_types.h"
-#include "DNA_curve_types.h"
-#include "DNA_armature_types.h"
+#include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
+#include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 #include "DNA_userdef_types.h"
 
-#include "BLI_path_util.h"
 #include "BLI_fileops.h"
-#include "BLI_math.h"
-#include "BLI_string.h"
 #include "BLI_listbase.h"
+#include "BLI_math.h"
+#include "BLI_path_util.h"
+#include "BLI_string.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_action.h"  // pose functions
 #include "BKE_animsys.h"
+#include "BKE_appdir.h"
 #include "BKE_armature.h"
 #include "BKE_blender_version.h"
 #include "BKE_customdata.h"
@@ -92,21 +92,19 @@ extern "C" {
 #include "BKE_material.h"
 #include "BKE_object.h"
 #include "BKE_scene.h"
-#include "BKE_appdir.h"
 
 #include "ED_keyframing.h"
 #ifdef WITH_BUILDINFO
-extern char build_commit_date[];
-extern char build_commit_time[];
-extern char build_hash[];
+extern "C" char build_commit_date[];
+extern "C" char build_commit_time[];
+extern "C" char build_hash[];
 #endif
 
 #include "RNA_access.h"
-}
 
+#include "DocumentExporter.h"
 #include "collada_internal.h"
 #include "collada_utils.h"
-#include "DocumentExporter.h"
 
 extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 
@@ -114,9 +112,8 @@ extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 #include "InstanceWriter.h"
 #include "TransformWriter.h"
 
-#include "SceneExporter.h"
-#include "ArmatureExporter.h"
 #include "AnimationExporter.h"
+#include "ArmatureExporter.h"
 #include "CameraExporter.h"
 #include "ControllerExporter.h"
 #include "EffectExporter.h"
@@ -124,6 +121,7 @@ extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 #include "ImageExporter.h"
 #include "LightExporter.h"
 #include "MaterialExporter.h"
+#include "SceneExporter.h"
 
 #include <errno.h>
 
@@ -245,20 +243,13 @@ int DocumentExporter::exportCurrentScene()
 #ifdef WITH_BUILDINFO
   BLI_snprintf(version_buf,
                sizeof(version_buf),
-               "Blender %d.%02d.%d commit date:%s, commit time:%s, hash:%s",
-               BLENDER_VERSION / 100,
-               BLENDER_VERSION % 100,
-               BLENDER_SUBVERSION,
+               "Blender %s commit date:%s, commit time:%s, hash:%s",
+               BKE_blender_version_string(),
                build_commit_date,
                build_commit_time,
                build_hash);
 #else
-  BLI_snprintf(version_buf,
-               sizeof(version_buf),
-               "Blender %d.%02d.%d",
-               BLENDER_VERSION / 100,
-               BLENDER_VERSION % 100,
-               BLENDER_SUBVERSION);
+  BLI_snprintf(version_buf, sizeof(version_buf), "Blender %s", BKE_blender_version_string());
 #endif
   asset.getContributor().mAuthoringTool = version_buf;
   asset.add();

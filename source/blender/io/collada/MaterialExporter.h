@@ -27,17 +27,16 @@
 #include "COLLADASWLibraryMaterials.h"
 #include "COLLADASWStreamWriter.h"
 
-extern "C" {
 #include "BKE_material.h"
+
 #include "DNA_material_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
-}
 
-#include "GeometryExporter.h"
-#include "collada_internal.h"
 #include "ExportSettings.h"
+#include "GeometryExporter.h"
 #include "Materials.h"
+#include "collada_internal.h"
 
 class MaterialsExporter : COLLADASW::LibraryMaterials {
  public:

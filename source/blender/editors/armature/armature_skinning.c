@@ -23,8 +23,8 @@
  * \ingroup edarmature
  */
 
-#include "DNA_mesh_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
@@ -283,11 +283,11 @@ static void add_verts_to_dgroups(ReportList *reports,
    * weights, either through envelopes or using a heat equilibrium.
    *
    * This function can be called both when parenting a mesh to an armature,
-   * or in weightpaint + posemode. In the latter case selection is taken
+   * or in weight-paint + pose-mode. In the latter case selection is taken
    * into account and vertex weights can be mirrored.
    *
    * The mesh vertex positions used are either the final deformed coords
-   * from the evaluated mesh in weightpaint mode, the final subsurf coords
+   * from the evaluated mesh in weight-paint mode, the final sub-surface coords
    * when parenting, or simply the original mesh coords.
    */
 
@@ -418,7 +418,7 @@ static void add_verts_to_dgroups(ReportList *reports,
     BKE_mesh_foreach_mapped_vert_coords_get(me_eval, verts, mesh->totvert);
     vertsfilled = 1;
   }
-  else if (modifiers_findByType(ob, eModifierType_Subsurf)) {
+  else if (BKE_modifiers_findby_type(ob, eModifierType_Subsurf)) {
     /* is subsurf on? Lets use the verts on the limit surface then.
      * = same amount of vertices as mesh, but vertices  moved to the
      * subsurfed position, like for 'optimal'. */
@@ -459,7 +459,7 @@ static void add_verts_to_dgroups(ReportList *reports,
   }
 
   /* only generated in some cases but can call anyway */
-  ED_mesh_mirror_spatial_table(ob, NULL, NULL, NULL, 'e');
+  ED_mesh_mirror_spatial_table_end(ob);
 
   /* free the memory allocated */
   MEM_freeN(bonelist);

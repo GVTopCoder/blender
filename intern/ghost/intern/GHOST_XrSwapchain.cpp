@@ -23,9 +23,9 @@
 #include "GHOST_C-api.h"
 
 #include "GHOST_IXrGraphicsBinding.h"
-#include "GHOST_Xr_intern.h"
 #include "GHOST_XrException.h"
 #include "GHOST_XrSession.h"
+#include "GHOST_Xr_intern.h"
 
 #include "GHOST_XrSwapchain.h"
 
@@ -68,7 +68,7 @@ GHOST_XrSwapchain::GHOST_XrSwapchain(GHOST_IXrGraphicsBinding &gpu_binding,
            "Failed to get swapchain image formats.");
   assert(swapchain_formats.size() == format_count);
 
-  if (!gpu_binding.chooseSwapchainFormat(swapchain_formats, &chosen_format)) {
+  if (!gpu_binding.chooseSwapchainFormat(swapchain_formats, chosen_format, m_is_srgb_buffer)) {
     throw GHOST_XrException(
         "Error: No format matching OpenXR runtime supported swapchain formats found.");
   }
@@ -92,9 +92,19 @@ GHOST_XrSwapchain::GHOST_XrSwapchain(GHOST_IXrGraphicsBinding &gpu_binding,
   m_oxr->swapchain_images = swapchain_images_create(m_oxr->swapchain, gpu_binding);
 }
 
+GHOST_XrSwapchain::GHOST_XrSwapchain(GHOST_XrSwapchain &&other)
+    : m_oxr(std::move(other.m_oxr)),
+      m_image_width(other.m_image_width),
+      m_image_height(other.m_image_height)
+{
+  /* Prevent xrDestroySwapchain call for the moved out item. */
+  other.m_oxr = nullptr;
+}
+
 GHOST_XrSwapchain::~GHOST_XrSwapchain()
 {
-  if (m_oxr->swapchain != XR_NULL_HANDLE) {
+  /* m_oxr may be NULL after move. */
+  if (m_oxr && m_oxr->swapchain != XR_NULL_HANDLE) {
     CHECK_XR_ASSERT(xrDestroySwapchain(m_oxr->swapchain));
   }
 }
@@ -120,6 +130,11 @@ void GHOST_XrSwapchain::updateCompositionLayerProjectViewSubImage(XrSwapchainSub
   r_sub_image.swapchain = m_oxr->swapchain;
   r_sub_image.imageRect.offset = {0, 0};
   r_sub_image.imageRect.extent = {m_image_width, m_image_height};
+}
+
+bool GHOST_XrSwapchain::isBufferSRGB()
+{
+  return m_is_srgb_buffer;
 }
 
 void GHOST_XrSwapchain::releaseImage()

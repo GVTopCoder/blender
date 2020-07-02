@@ -37,13 +37,13 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BKE_main.h"
 #include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
-#include "BKE_object.h"
+#include "BKE_main.h"
 #include "BKE_material.h"
+#include "BKE_object.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -51,8 +51,8 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
-#include "ED_object.h"
 #include "ED_gpencil.h"
+#include "ED_object.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -117,9 +117,8 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *op)
     DEG_relations_tag_update(bmain); /* added object */
 
     /* convert grease pencil palettes (version >= 2.78)  to materials and weights */
-    for (const bGPDpalette *palette = gpd->palettes.first; palette; palette = palette->next) {
-      for (bGPDpalettecolor *palcolor = palette->colors.first; palcolor;
-           palcolor = palcolor->next) {
+    LISTBASE_FOREACH (const bGPDpalette *, palette, &gpd->palettes) {
+      LISTBASE_FOREACH (bGPDpalettecolor *, palcolor, &palette->colors) {
 
         /* create material slot */
         Material *ma = BKE_gpencil_object_material_new(bmain, ob, palcolor->info, NULL);
@@ -134,7 +133,6 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *op)
         ARRAY_SET_ITEMS(gp_style->mix_rgba, 1.0f, 1.0f, 1.0f, 0.2f);
         ARRAY_SET_ITEMS(gp_style->gradient_scale, 1.0f, 1.0f);
         ARRAY_SET_ITEMS(gp_style->texture_scale, 1.0f, 1.0f);
-        gp_style->texture_opacity = 1.0f;
         gp_style->texture_pixsize = 100.0f;
 
         gp_style->flag |= GP_MATERIAL_STROKE_SHOW;
@@ -169,9 +167,8 @@ static int gpencil_convert_old_files_exec(bContext *C, wmOperator *op)
   }
 
   if (is_annotation) {
-    for (const bGPDpalette *palette = gpd->palettes.first; palette; palette = palette->next) {
-      for (bGPDpalettecolor *palcolor = palette->colors.first; palcolor;
-           palcolor = palcolor->next) {
+    LISTBASE_FOREACH (const bGPDpalette *, palette, &gpd->palettes) {
+      LISTBASE_FOREACH (bGPDpalettecolor *, palcolor, &palette->colors) {
         /* fix layers */
         LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
           /* unlock/unhide layer */

@@ -50,29 +50,29 @@
 #include "DNA_collection_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_lattice_types.h"
-#include "DNA_meshdata_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BLI_math.h"
-#include "BLI_utildefines.h"
-#include "BLI_listbase.h"
 #include "BLI_ghash.h"
+#include "BLI_listbase.h"
+#include "BLI_math.h"
 #include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_collection.h"
 #include "BKE_collision.h"
 #include "BKE_curve.h"
+#include "BKE_deform.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_layer.h"
-#include "BKE_modifier.h"
-#include "BKE_softbody.h"
-#include "BKE_pointcache.h"
-#include "BKE_deform.h"
 #include "BKE_mesh.h"
+#include "BKE_modifier.h"
+#include "BKE_pointcache.h"
 #include "BKE_scene.h"
+#include "BKE_softbody.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -285,7 +285,7 @@ static ccd_Mesh *ccd_mesh_make(Object *ob)
   float hull;
   int i;
 
-  cmd = (CollisionModifierData *)modifiers_findByType(ob, eModifierType_Collision);
+  cmd = (CollisionModifierData *)BKE_modifiers_findby_type(ob, eModifierType_Collision);
 
   /* first some paranoia checks */
   if (!cmd) {
@@ -371,7 +371,7 @@ static void ccd_mesh_update(Object *ob, ccd_Mesh *pccd_M)
   float hull;
   int i;
 
-  cmd = (CollisionModifierData *)modifiers_findByType(ob, eModifierType_Collision);
+  cmd = (CollisionModifierData *)BKE_modifiers_findby_type(ob, eModifierType_Collision);
 
   /* first some paranoia checks */
   if (!cmd) {
@@ -1479,7 +1479,8 @@ static void _scan_for_ext_spring_forces(
             mid_v3_v3v3(pos, sb->bpoint[bs->v1].pos, sb->bpoint[bs->v2].pos);
             mid_v3_v3v3(vel, sb->bpoint[bs->v1].vec, sb->bpoint[bs->v2].vec);
             pd_point_from_soft(scene, pos, vel, -1, &epoint);
-            BKE_effectors_apply(effectors, NULL, sb->effector_weights, &epoint, force, speed);
+            BKE_effectors_apply(
+                effectors, NULL, sb->effector_weights, &epoint, force, NULL, speed);
 
             mul_v3_fl(speed, windfactor);
             add_v3_v3(vel, speed);
@@ -2107,7 +2108,7 @@ static int _softbody_calc_forces_slice_in_a_thread(Scene *scene,
         float eval_sb_fric_force_scale = sb_fric_force_scale(ob);
 
         pd_point_from_soft(scene, bp->pos, bp->vec, sb->bpoint - bp, &epoint);
-        BKE_effectors_apply(effectors, NULL, sb->effector_weights, &epoint, force, speed);
+        BKE_effectors_apply(effectors, NULL, sb->effector_weights, &epoint, force, NULL, speed);
 
         /* apply forcefield*/
         mul_v3_fl(force, fieldfactor * eval_sb_fric_force_scale);
@@ -3010,7 +3011,7 @@ static void curve_surf_to_softbody(Scene *scene, Object *ob)
        *    (C2= continuous in second derivate -> no jump in bending ) condition.
        *
        * Not too hard to do, but needs some more code to care for;
-       * some one may want look at it  JOW 2010/06/12. */
+       * some one may want look at it (JOW 2010/06/12). */
       for (bezt = nu->bezt, a = 0; a < nu->pntsu; a++, bezt++, bp += 3, curindex += 3) {
         if (setgoal) {
           bp->goal *= bezt->weight;

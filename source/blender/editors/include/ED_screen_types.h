@@ -34,11 +34,11 @@ extern "C" {
 typedef struct ScreenAnimData {
   ARegion *region; /* do not read from this, only for comparing if region exists */
   short redraws;
-  short flag;           /* flags for playback */
-  int sfra;             /* frame that playback was started from */
-  int nextfra;          /* next frame to go to (when ANIMPLAY_FLAG_USE_NEXT_FRAME is set) */
-  double last_duration; /* used for frame dropping */
-  bool from_anim_edit;  /* playback was invoked from animation editor */
+  short flag;                 /* flags for playback */
+  int sfra;                   /* frame that playback was started from */
+  int nextfra;                /* next frame to go to (when ANIMPLAY_FLAG_USE_NEXT_FRAME is set) */
+  double lagging_frame_count; /* used for frame dropping */
+  bool from_anim_edit;        /* playback was invoked from animation editor */
 } ScreenAnimData;
 
 /* for animplayer */
@@ -131,7 +131,7 @@ enum {
    */
   AZONE_FULLSCREEN,
   /**
-   * Hotspot azone around scroll-bars to show/hide them.
+   * Hot-spot #AZone around scroll-bars to show/hide them.
    * Only show the scroll-bars when the cursor is close.
    */
   AZONE_REGION_SCROLL,

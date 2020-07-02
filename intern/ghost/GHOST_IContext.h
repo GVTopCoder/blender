@@ -25,7 +25,6 @@
 #ifndef __GHOST_IContext_H__
 #define __GHOST_IContext_H__
 
-#include "STR_String.h"
 #include "GHOST_Types.h"
 
 /**
@@ -59,11 +58,6 @@ class GHOST_IContext {
   virtual unsigned int getDefaultFramebuffer() = 0;
 
   virtual GHOST_TSuccess swapBuffers() = 0;
-
-  /**
-   * Returns if the window is rendered upside down compared to OpenGL.
-   */
-  virtual bool isUpsideDown() const = 0;
 
 #ifdef WITH_CXX_GUARDEDALLOC
   MEM_CXX_CLASS_ALLOC_FUNCS("GHOST:GHOST_IContext")

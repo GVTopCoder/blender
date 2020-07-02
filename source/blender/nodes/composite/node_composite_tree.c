@@ -24,8 +24,8 @@
 #include <stdio.h>
 
 #include "DNA_color_types.h"
-#include "DNA_scene_types.h"
 #include "DNA_node_types.h"
+#include "DNA_scene_types.h"
 
 #include "BLT_translation.h"
 
@@ -228,7 +228,7 @@ void register_node_tree_type_cmp(void)
   tt->get_from_context = composite_get_from_context;
   tt->node_add_init = composite_node_add_init;
 
-  tt->ext.srna = &RNA_CompositorNodeTree;
+  tt->rna_ext.srna = &RNA_CompositorNodeTree;
 
   ntreeTypeAdd(tt);
 }

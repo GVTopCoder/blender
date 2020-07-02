@@ -24,8 +24,8 @@
 
 #include "overlay_private.h"
 
-#include "BKE_pbvh.h"
 #include "BKE_paint.h"
+#include "BKE_pbvh.h"
 #include "BKE_subdiv_ccg.h"
 
 void OVERLAY_sculpt_cache_init(OVERLAY_Data *vedata)
@@ -54,7 +54,7 @@ void OVERLAY_sculpt_cache_populate(OVERLAY_Data *vedata, Object *ob)
 
   if (use_pbvh || !ob->sculpt->deform_modifiers_active || ob->sculpt->shapekey_active) {
     if (!use_pbvh || pbvh_has_mask(pbvh) || pbvh_has_face_sets(pbvh)) {
-      DRW_shgroup_call_sculpt(pd->sculpt_mask_grp, ob, false, true, false);
+      DRW_shgroup_call_sculpt(pd->sculpt_mask_grp, ob, false, true);
     }
   }
 }
@@ -62,10 +62,11 @@ void OVERLAY_sculpt_cache_populate(OVERLAY_Data *vedata, Object *ob)
 void OVERLAY_sculpt_draw(OVERLAY_Data *vedata)
 {
   OVERLAY_PassList *psl = vedata->psl;
+  OVERLAY_PrivateData *pd = vedata->stl->pd;
   DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
   if (DRW_state_is_fbo()) {
-    GPU_framebuffer_bind(dfbl->default_fb);
+    GPU_framebuffer_bind(pd->painting.in_front ? dfbl->in_front_fb : dfbl->default_fb);
   }
 
   DRW_draw_pass(psl->sculpt_mask_ps);

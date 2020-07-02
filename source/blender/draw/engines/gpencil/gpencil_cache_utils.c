@@ -29,12 +29,13 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_view3d_types.h"
 
-#include "BKE_lib_id.h"
 #include "BKE_gpencil.h"
+#include "BKE_lib_id.h"
 #include "BKE_object.h"
 
-#include "BLI_memblock.h"
+#include "BLI_hash.h"
 #include "BLI_link_utils.h"
+#include "BLI_memblock.h"
 
 #include "gpencil_engine.h"
 
@@ -158,7 +159,7 @@ void gpencil_object_cache_sort(GPENCIL_PrivateData *pd)
     }
   }
 
-  /* Join both lists, adding infront. */
+  /* Join both lists, adding in front. */
   if (pd->tobjects_infront.first != NULL) {
     if (pd->tobjects.last != NULL) {
       pd->tobjects.last->next = pd->tobjects_infront.first;
@@ -234,6 +235,21 @@ static void gpencil_layer_final_tint_and_alpha_get(const GPENCIL_PrivateData *pd
   *r_alpha *= pd->xray_alpha;
 }
 
+/* Random color by layer. */
+static void gpencil_layer_random_color_get(const Object *ob,
+                                           const bGPDlayer *gpl,
+                                           float r_color[3])
+{
+  const float hsv_saturation = 0.7f;
+  const float hsv_value = 0.6f;
+
+  uint ob_hash = BLI_ghashutil_strhash_p_murmur(ob->id.name);
+  uint gpl_hash = BLI_ghashutil_strhash_p_murmur(gpl->info);
+  float hue = BLI_hash_int_01(ob_hash * gpl_hash);
+  float hsv[3] = {hue, hsv_saturation, hsv_value};
+  hsv_to_rgb_v(hsv, r_color);
+}
+
 GPENCIL_tLayer *gpencil_layer_cache_add(GPENCIL_PrivateData *pd,
                                         const Object *ob,
                                         const bGPDlayer *gpl,
@@ -249,8 +265,10 @@ GPENCIL_tLayer *gpencil_layer_cache_add(GPENCIL_PrivateData *pd,
                                 GPENCIL_VERTEX_MODE(gpd) || pd->is_render;
   bool is_masked = (gpl->flag & GP_LAYER_USE_MASK) && !BLI_listbase_is_empty(&gpl->mask_layers);
 
-  float vert_col_opacity = (overide_vertcol) ? (is_vert_col_mode ? 1.0f : 0.0f) :
-                                               gpl->vertex_paint_opacity;
+  float vert_col_opacity = (overide_vertcol) ?
+                               (is_vert_col_mode ? pd->vertex_paint_opacity : 0.0f) :
+                               pd->is_render ? gpl->vertex_paint_opacity :
+                                               pd->vertex_paint_opacity;
   /* Negate thickness sign to tag that strokes are in screen space.
    * Convert to world units (by default, 1 meter = 2000 px). */
   float thickness_scale = (is_screenspace) ? -1.0f : (gpd->pixfactor / GPENCIL_PIXEL_FACTOR);
@@ -314,12 +332,12 @@ GPENCIL_tLayer *gpencil_layer_cache_add(GPENCIL_PrivateData *pd,
         break;
       case eGplBlendMode_Multiply:
       case eGplBlendMode_Divide:
-      case eGplBlendMode_Overlay:
+      case eGplBlendMode_HardLight:
         state |= DRW_STATE_BLEND_MUL;
         break;
     }
 
-    if (ELEM(gpl->blend_mode, eGplBlendMode_Subtract, eGplBlendMode_Overlay)) {
+    if (ELEM(gpl->blend_mode, eGplBlendMode_Subtract, eGplBlendMode_HardLight)) {
       /* For these effect to propagate, we need a signed floating point buffer. */
       pd->use_signed_fb = true;
     }
@@ -336,7 +354,7 @@ GPENCIL_tLayer *gpencil_layer_cache_add(GPENCIL_PrivateData *pd,
     DRW_shgroup_stencil_mask(grp, 0xFF);
     DRW_shgroup_call_procedural_triangles(grp, NULL, 1);
 
-    if (gpl->blend_mode == eGplBlendMode_Overlay) {
+    if (gpl->blend_mode == eGplBlendMode_HardLight) {
       /* We cannot do custom blending on MultiTarget framebuffers.
        * Workaround by doing 2 passes. */
       grp = DRW_shgroup_create(sh, tgp_layer->blend_ps);
@@ -365,7 +383,7 @@ GPENCIL_tLayer *gpencil_layer_cache_add(GPENCIL_PrivateData *pd,
     struct GPUShader *sh = GPENCIL_shader_geometry_get();
     DRWShadingGroup *grp = tgp_layer->base_shgrp = DRW_shgroup_create(sh, tgp_layer->geom_ps);
 
-    DRW_shgroup_uniform_texture_persistent(grp, "gpSceneDepthTexture", depth_tex);
+    DRW_shgroup_uniform_texture(grp, "gpSceneDepthTexture", depth_tex);
     DRW_shgroup_uniform_texture_ref(grp, "gpMaskTexture", mask_tex);
     DRW_shgroup_uniform_vec3_copy(grp, "gpNormal", tgp_ob->plane_normal);
     DRW_shgroup_uniform_bool_copy(grp, "strokeOrder3d", tgp_ob->is_drawmode3d);
@@ -375,7 +393,16 @@ GPENCIL_tLayer *gpencil_layer_cache_add(GPENCIL_PrivateData *pd,
     DRW_shgroup_uniform_float_copy(grp, "thicknessOffset", (float)gpl->line_change);
     DRW_shgroup_uniform_float_copy(grp, "thicknessWorldScale", thickness_scale);
     DRW_shgroup_uniform_float_copy(grp, "vertexColorOpacity", vert_col_opacity);
-    DRW_shgroup_uniform_vec4_copy(grp, "layerTint", layer_tint);
+
+    /* If random color type, need color by layer. */
+    float gpl_color[4];
+    copy_v4_v4(gpl_color, layer_tint);
+    if (pd->v3d_color_type == V3D_SHADING_RANDOM_COLOR) {
+      gpencil_layer_random_color_get(ob, gpl, gpl_color);
+      gpl_color[3] = 1.0f;
+    }
+    DRW_shgroup_uniform_vec4_copy(grp, "layerTint", gpl_color);
+
     DRW_shgroup_uniform_float_copy(grp, "layerOpacity", layer_alpha);
     DRW_shgroup_stencil_mask(grp, 0xFF);
   }

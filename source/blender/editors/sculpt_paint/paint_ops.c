@@ -20,19 +20,19 @@
 
 #include "MEM_guardedalloc.h"
 
-#include <stdlib.h>
 #include "BLI_listbase.h"
-#include "BLI_utildefines.h"
 #include "BLI_math_vector.h"
 #include "BLI_string.h"
+#include "BLI_utildefines.h"
+#include <stdlib.h>
 
-#include "IMB_imbuf_types.h"
 #include "IMB_imbuf.h"
+#include "IMB_imbuf_types.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_customdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
-#include "DNA_brush_types.h"
 
 #include "BKE_brush.h"
 #include "BKE_context.h"
@@ -42,13 +42,13 @@
 #include "BKE_paint.h"
 #include "BKE_report.h"
 
+#include "ED_image.h"
 #include "ED_paint.h"
 #include "ED_screen.h"
-#include "ED_image.h"
 
 #include "WM_api.h"
-#include "WM_types.h"
 #include "WM_toolsystem.h"
+#include "WM_types.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -303,8 +303,11 @@ static void PALETTE_OT_color_delete(wmOperatorType *ot)
 static bool palette_extract_img_poll(bContext *C)
 {
   SpaceLink *sl = CTX_wm_space_data(C);
-  if (sl->spacetype == SPACE_IMAGE) {
-    return true;
+  if ((sl != NULL) && (sl->spacetype == SPACE_IMAGE)) {
+    SpaceImage *sima = CTX_wm_space_image(C);
+    Image *image = sima->image;
+    ImageUser iuser = sima->iuser;
+    return BKE_image_has_ibuf(image, &iuser);
   }
 
   return false;
@@ -326,16 +329,16 @@ static int palette_extract_img_exec(bContext *C, wmOperator *op)
 
   ibuf = BKE_image_acquire_ibuf(image, &iuser, &lock);
 
-  if (ibuf->rect) {
+  if (ibuf && ibuf->rect) {
     /* Extract all colors. */
+    const int range = (int)pow(10.0f, threshold);
     for (int row = 0; row < ibuf->y; row++) {
       for (int col = 0; col < ibuf->x; col++) {
         float color[4];
         IMB_sampleImageAtLocation(ibuf, (float)col, (float)row, false, color);
-        const float range = pow(10.0f, threshold);
-        color[0] = truncf(color[0] * range) / range;
-        color[1] = truncf(color[1] * range) / range;
-        color[2] = truncf(color[2] * range) / range;
+        for (int i = 0; i < 3; i++) {
+          color[i] = truncf(color[i] * range) / range;
+        }
 
         uint key = rgb_to_cpack(color[0], color[1], color[2]);
         if (!BLI_ghash_haskey(color_table, POINTER_FROM_INT(key))) {
@@ -360,6 +363,8 @@ static int palette_extract_img_exec(bContext *C, wmOperator *op)
 
 static void PALETTE_OT_extract_from_image(wmOperatorType *ot)
 {
+  PropertyRNA *prop;
+
   /* identifiers */
   ot->name = "Extract Palette from Image";
   ot->idname = "PALETTE_OT_extract_from_image";
@@ -373,7 +378,8 @@ static void PALETTE_OT_extract_from_image(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
   /* properties */
-  RNA_def_int(ot->srna, "threshold", 1, 1, 4, "Threshold", "", 1, 4);
+  prop = RNA_def_int(ot->srna, "threshold", 1, 1, 1, "Threshold", "", 1, 1);
+  RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /* Sort Palette color by Hue and Saturation. */
@@ -397,7 +403,7 @@ static int palette_sort_exec(bContext *C, wmOperator *op)
     color_array = MEM_calloc_arrayN(totcol, sizeof(tPaletteColorHSV), __func__);
     /* Put all colors in an array. */
     int t = 0;
-    for (PaletteColor *color = palette->colors.first; color; color = color->next) {
+    LISTBASE_FOREACH (PaletteColor *, color, &palette->colors) {
       float h, s, v;
       rgb_to_hsv(color->rgb[0], color->rgb[1], color->rgb[2], &h, &s, &v);
       col_elm = &color_array[t];
@@ -543,7 +549,7 @@ static int palette_join_exec(bContext *C, wmOperator *op)
   const int totcol = BLI_listbase_count(&palette_join->colors);
 
   if (totcol > 0) {
-    for (PaletteColor *color = palette_join->colors.first; color; color = color->next) {
+    LISTBASE_FOREACH (PaletteColor *, color, &palette_join->colors) {
       PaletteColor *palcol = BKE_palette_color_add(palette);
       if (palcol) {
         copy_v3_v3(palcol->rgb, color->rgb);
@@ -716,7 +722,8 @@ static bool brush_generic_tool_set(bContext *C,
     brush = brush_tool_cycle(bmain, paint, brush_orig, tool);
   }
 
-  if (!brush && brush_tool(brush_orig, paint->runtime.tool_offset) != tool && create_missing) {
+  if (((brush == NULL) && create_missing) &&
+      ((brush_orig == NULL) || brush_tool(brush_orig, paint->runtime.tool_offset) != tool)) {
     brush = BKE_brush_add(bmain, tool_name, paint->runtime.ob_mode);
     id_us_min(&brush->id); /* fake user only */
     brush_tool_set(brush, paint->runtime.tool_offset, tool);
@@ -730,7 +737,14 @@ static bool brush_generic_tool_set(bContext *C,
     WM_main_add_notifier(NC_BRUSH | NA_EDITED, brush);
 
     /* Tool System
-     * This is needed for when there is a non-sculpt tool active (transform for e.g.) */
+     * This is needed for when there is a non-sculpt tool active (transform for e.g.).
+     * In case we are toggling (and the brush changed to the toggle_brush), we need to get the
+     * tool_name again. */
+    int tool_result = brush_tool(brush, paint->runtime.tool_offset);
+    ePaintMode paint_mode = BKE_paintmode_get_active_from_context(C);
+    const EnumPropertyItem *items = BKE_paint_get_tool_enum_from_paintmode(paint_mode);
+    RNA_enum_name_from_value(items, tool_result, &tool_name);
+
     char tool_id[MAX_NAME];
     SNPRINTF(tool_id, "builtin_brush.%s", tool_name);
     WM_toolsystem_ref_set_by_id(C, tool_id);
@@ -778,6 +792,9 @@ static int brush_select_exec(bContext *C, wmOperator *op)
   }
 
   Paint *paint = BKE_paint_get_active_from_paintmode(scene, paint_mode);
+  if (paint == NULL) {
+    return OPERATOR_CANCELLED;
+  }
   const EnumPropertyItem *items = BKE_paint_get_tool_enum_from_paintmode(paint_mode);
   RNA_enum_name_from_value(items, tool, &tool_name);
 
@@ -1136,24 +1153,24 @@ static int stencil_fit_image_aspect_exec(bContext *C, wmOperator *op)
       aspy *= tex->yrepeat;
     }
 
-    orig_area = aspx * aspy;
+    orig_area = fabsf(aspx * aspy);
 
     if (do_mask) {
-      stencil_area = br->mask_stencil_dimension[0] * br->mask_stencil_dimension[1];
+      stencil_area = fabsf(br->mask_stencil_dimension[0] * br->mask_stencil_dimension[1]);
     }
     else {
-      stencil_area = br->stencil_dimension[0] * br->stencil_dimension[1];
+      stencil_area = fabsf(br->stencil_dimension[0] * br->stencil_dimension[1]);
     }
 
     factor = sqrtf(stencil_area / orig_area);
 
     if (do_mask) {
-      br->mask_stencil_dimension[0] = factor * aspx;
-      br->mask_stencil_dimension[1] = factor * aspy;
+      br->mask_stencil_dimension[0] = fabsf(factor * aspx);
+      br->mask_stencil_dimension[1] = fabsf(factor * aspy);
     }
     else {
-      br->stencil_dimension[0] = factor * aspx;
-      br->stencil_dimension[1] = factor * aspy;
+      br->stencil_dimension[0] = fabsf(factor * aspx);
+      br->stencil_dimension[1] = fabsf(factor * aspy);
     }
   }
 

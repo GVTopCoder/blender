@@ -30,8 +30,8 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_math.h"
 #include "BLI_blenlib.h"
+#include "BLI_math.h"
 
 #include "BKE_context.h"
 #include "BKE_report.h"
@@ -54,6 +54,10 @@
 #include "DEG_depsgraph.h"
 
 #include "view3d_intern.h" /* own include */
+
+/* -------------------------------------------------------------------- */
+/** \name Modal Key-map
+ * \{ */
 
 /* NOTE: these defines are saved in keymap files,
  * do not change values but just add new ones */
@@ -125,18 +129,24 @@ void fly_modal_keymap(wmKeyConfig *keyconf)
       {0, NULL, 0, NULL, NULL},
   };
 
-  wmKeyMap *keymap = WM_modalkeymap_get(keyconf, "View3D Fly Modal");
+  wmKeyMap *keymap = WM_modalkeymap_find(keyconf, "View3D Fly Modal");
 
   /* this function is called for each spacetype, only needs to add map once */
   if (keymap && keymap->modal_items) {
     return;
   }
 
-  keymap = WM_modalkeymap_add(keyconf, "View3D Fly Modal", modal_items);
+  keymap = WM_modalkeymap_ensure(keyconf, "View3D Fly Modal", modal_items);
 
   /* assign map to operators */
   WM_modalkeymap_assign(keymap, "VIEW3D_OT_fly");
 }
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal Fly Structs
+ * \{ */
 
 typedef struct FlyInfo {
   /* context stuff */
@@ -204,6 +214,12 @@ typedef struct FlyInfo {
   struct View3DCameraControl *v3d_camera_control;
 
 } FlyInfo;
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal Fly Drawing
+ * \{ */
 
 /* prototypes */
 #ifdef WITH_INPUT_NDOF
@@ -277,6 +293,12 @@ static void drawFlyPixel(const struct bContext *UNUSED(C), ARegion *UNUSED(regio
   immEnd();
   immUnbindProgram();
 }
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal Fly Logic
+ * \{ */
 
 /* FlyInfo->state */
 enum {
@@ -593,7 +615,7 @@ static void flyEvent(FlyInfo *fly, const wmEvent *event)
         }
         else {
           /* flip speed rather than stopping, game like motion,
-           * else increase like mousewheel if were already moving in that direction */
+           * else increase like mousewheel if we're already moving in that direction */
           if (fly->speed < 0.0f) {
             fly->speed = -fly->speed;
           }
@@ -1034,6 +1056,12 @@ static void flyApply_ndof(bContext *C, FlyInfo *fly, bool is_confirm)
 }
 #endif /* WITH_INPUT_NDOF */
 
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Fly Operator
+ * \{ */
+
 static int fly_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
   RegionView3D *rv3d = CTX_wm_region_view3d(C);
@@ -1128,3 +1156,5 @@ void VIEW3D_OT_fly(wmOperatorType *ot)
   /* flags */
   ot->flag = OPTYPE_BLOCKING;
 }
+
+/** \} */

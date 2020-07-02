@@ -80,6 +80,13 @@ int manta_write_data(MANTA *fluid, FluidModifierData *mmd, int framenr)
   return fluid->writeData(mmd, framenr);
 }
 
+int manta_write_noise(MANTA *fluid, FluidModifierData *mmd, int framenr)
+{
+  if (!fluid || !mmd)
+    return 0;
+  return fluid->writeNoise(mmd, framenr);
+}
+
 int manta_read_config(MANTA *fluid, FluidModifierData *mmd, int framenr)
 {
   if (!fluid || !mmd)
@@ -87,18 +94,18 @@ int manta_read_config(MANTA *fluid, FluidModifierData *mmd, int framenr)
   return fluid->readConfiguration(mmd, framenr);
 }
 
-int manta_read_data(MANTA *fluid, FluidModifierData *mmd, int framenr)
+int manta_read_data(MANTA *fluid, FluidModifierData *mmd, int framenr, bool resumable)
 {
   if (!fluid || !mmd)
     return 0;
-  return fluid->readData(mmd, framenr);
+  return fluid->readData(mmd, framenr, resumable);
 }
 
-int manta_read_noise(MANTA *fluid, FluidModifierData *mmd, int framenr)
+int manta_read_noise(MANTA *fluid, FluidModifierData *mmd, int framenr, bool resumable)
 {
   if (!fluid || !mmd)
     return 0;
-  return fluid->readNoise(mmd, framenr);
+  return fluid->readNoise(mmd, framenr, resumable);
 }
 
 int manta_read_mesh(MANTA *fluid, FluidModifierData *mmd, int framenr)
@@ -108,11 +115,11 @@ int manta_read_mesh(MANTA *fluid, FluidModifierData *mmd, int framenr)
   return fluid->readMesh(mmd, framenr);
 }
 
-int manta_read_particles(MANTA *fluid, FluidModifierData *mmd, int framenr)
+int manta_read_particles(MANTA *fluid, FluidModifierData *mmd, int framenr, bool resumable)
 {
   if (!fluid || !mmd)
     return 0;
-  return fluid->readParticles(mmd, framenr);
+  return fluid->readParticles(mmd, framenr, resumable);
 }
 
 int manta_read_guiding(MANTA *fluid, FluidModifierData *mmd, int framenr, bool sourceDomain)
@@ -120,41 +127,6 @@ int manta_read_guiding(MANTA *fluid, FluidModifierData *mmd, int framenr, bool s
   if (!fluid || !mmd)
     return 0;
   return fluid->readGuiding(mmd, framenr, sourceDomain);
-}
-
-int manta_update_liquid_structures(MANTA *fluid, FluidModifierData *mmd, int framenr)
-{
-  if (!fluid || !mmd)
-    return 0;
-  return fluid->updateFlipStructures(mmd, framenr);
-}
-
-int manta_update_mesh_structures(MANTA *fluid, FluidModifierData *mmd, int framenr)
-{
-  if (!fluid || !mmd)
-    return 0;
-  return fluid->updateMeshStructures(mmd, framenr);
-}
-
-int manta_update_particle_structures(MANTA *fluid, FluidModifierData *mmd, int framenr)
-{
-  if (!fluid || !mmd)
-    return 0;
-  return fluid->updateParticleStructures(mmd, framenr);
-}
-
-int manta_update_smoke_structures(MANTA *fluid, FluidModifierData *mmd, int framenr)
-{
-  if (!fluid || !mmd)
-    return 0;
-  return fluid->updateSmokeStructures(mmd, framenr);
-}
-
-int manta_update_noise_structures(MANTA *fluid, FluidModifierData *mmd, int framenr)
-{
-  if (!fluid || !mmd)
-    return 0;
-  return fluid->updateNoiseStructures(mmd, framenr);
 }
 
 int manta_bake_data(MANTA *fluid, FluidModifierData *mmd, int framenr)
@@ -190,6 +162,41 @@ int manta_bake_guiding(MANTA *fluid, FluidModifierData *mmd, int framenr)
   if (!fluid || !mmd)
     return 0;
   return fluid->bakeGuiding(mmd, framenr);
+}
+
+int manta_has_data(MANTA *fluid, FluidModifierData *mmd, int framenr)
+{
+  if (!fluid || !mmd)
+    return 0;
+  return fluid->hasData(mmd, framenr);
+}
+
+int manta_has_noise(MANTA *fluid, FluidModifierData *mmd, int framenr)
+{
+  if (!fluid || !mmd)
+    return 0;
+  return fluid->hasNoise(mmd, framenr);
+}
+
+int manta_has_mesh(MANTA *fluid, FluidModifierData *mmd, int framenr)
+{
+  if (!fluid || !mmd)
+    return 0;
+  return fluid->hasMesh(mmd, framenr);
+}
+
+int manta_has_particles(MANTA *fluid, FluidModifierData *mmd, int framenr)
+{
+  if (!fluid || !mmd)
+    return 0;
+  return fluid->hasParticles(mmd, framenr);
+}
+
+int manta_has_guiding(MANTA *fluid, FluidModifierData *mmd, int framenr, bool domain)
+{
+  if (!fluid || !mmd)
+    return 0;
+  return fluid->hasGuiding(mmd, framenr, domain);
 }
 
 void manta_update_variables(MANTA *fluid, FluidModifierData *mmd)
@@ -347,6 +354,10 @@ float *manta_get_phiobsstatic_in(MANTA *fluid)
 float *manta_get_phiout_in(MANTA *fluid)
 {
   return fluid->getPhiOutIn();
+}
+float *manta_get_phioutstatic_in(MANTA *fluid)
+{
+  return fluid->getPhiOutStaticIn();
 }
 
 /* Smoke functions */

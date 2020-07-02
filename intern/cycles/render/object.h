@@ -23,8 +23,8 @@
 #include "util/util_array.h"
 #include "util/util_boundbox.h"
 #include "util/util_param.h"
-#include "util/util_transform.h"
 #include "util/util_thread.h"
+#include "util/util_transform.h"
 #include "util/util_types.h"
 #include "util/util_vector.h"
 
@@ -59,6 +59,7 @@ class Object : public Node {
   bool hide_on_missing_motion;
   bool use_holdout;
   bool is_shadow_catcher;
+  float shadow_terminator_offset;
 
   float3 dupli_generated;
   float2 dupli_uv;

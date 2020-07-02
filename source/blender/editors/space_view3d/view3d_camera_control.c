@@ -37,9 +37,9 @@
  * - updating can optionally keyframe the camera object.
  */
 
-#include "DNA_scene_types.h"
-#include "DNA_object_types.h"
 #include "DNA_camera_types.h"
+#include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -89,7 +89,7 @@ typedef struct View3DCameraControl {
 
   /* backup the views quat in case the user cancels flying in non camera mode. */
   float rot_backup[4];
-  /* remember if were ortho or not, only used for restoring the view if it was a ortho view */
+  /* remember if we're ortho or not, only used for restoring the view if it was a ortho view */
   char persp_backup;
 
   /* are we flying an ortho camera in perspective view,
@@ -182,7 +182,7 @@ struct View3DCameraControl *ED_view3d_cameracontrol_acquire(Depsgraph *depsgraph
     copy_qt_qt(vctrl->rot_backup, rv3d->viewquat);
     copy_v3_v3(vctrl->ofs_backup, rv3d->ofs);
 
-    /* the dist defines a vector that is infront of the offset
+    /* The dist defines a vector that is in front of the offset
      * to rotate the view about.
      * this is no good for fly mode because we
      * want to rotate about the viewers center.

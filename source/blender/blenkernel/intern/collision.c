@@ -26,18 +26,18 @@
 #include "DNA_cloth_types.h"
 #include "DNA_collection_types.h"
 #include "DNA_effect_types.h"
-#include "DNA_object_types.h"
-#include "DNA_object_force_types.h"
-#include "DNA_scene_types.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_object_force_types.h"
+#include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_blenlib.h"
+#include "BLI_ghash.h"
 #include "BLI_linklist.h"
 #include "BLI_math.h"
 #include "BLI_task.h"
 #include "BLI_threads.h"
-#include "BLI_ghash.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_cloth.h"
 #include "BKE_collection.h"
@@ -46,8 +46,8 @@
 #include "BKE_modifier.h"
 #include "BKE_scene.h"
 
-#include "BLI_kdopbvh.h"
 #include "BKE_collision.h"
+#include "BLI_kdopbvh.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_physics.h"
@@ -1307,7 +1307,7 @@ static void add_collision_object(ListBase *relations,
   /* only get objects with collision modifier */
   if (((modifier_type == eModifierType_Collision) && ob->pd && ob->pd->deflect) ||
       (modifier_type != eModifierType_Collision)) {
-    cmd = (CollisionModifierData *)modifiers_findByType(ob, modifier_type);
+    cmd = (CollisionModifierData *)BKE_modifiers_findby_type(ob, modifier_type);
   }
 
   if (cmd) {
@@ -1380,7 +1380,7 @@ Object **BKE_collision_objects_create(Depsgraph *depsgraph,
   int num = 0;
   Object **objects = MEM_callocN(sizeof(Object *) * maxnum, __func__);
 
-  for (CollisionRelation *relation = relations->first; relation; relation = relation->next) {
+  LISTBASE_FOREACH (CollisionRelation *, relation, relations) {
     /* Get evaluated object. */
     Object *ob = (Object *)DEG_get_evaluated_id(depsgraph, &relation->ob->id);
 
@@ -1418,7 +1418,7 @@ ListBase *BKE_collider_cache_create(Depsgraph *depsgraph, Object *self, Collecti
     return NULL;
   }
 
-  for (CollisionRelation *relation = relations->first; relation; relation = relation->next) {
+  LISTBASE_FOREACH (CollisionRelation *, relation, relations) {
     /* Get evaluated object. */
     Object *ob = (Object *)DEG_get_evaluated_id(depsgraph, &relation->ob->id);
 
@@ -1426,7 +1426,7 @@ ListBase *BKE_collider_cache_create(Depsgraph *depsgraph, Object *self, Collecti
       continue;
     }
 
-    CollisionModifierData *cmd = (CollisionModifierData *)modifiers_findByType(
+    CollisionModifierData *cmd = (CollisionModifierData *)BKE_modifiers_findby_type(
         ob, eModifierType_Collision);
     if (cmd && cmd->bvhtree) {
       if (cache == NULL) {
@@ -1527,7 +1527,7 @@ static int cloth_bvh_objcollisions_resolve(ClothModifierData *clmd,
 
     for (i = 0; i < numcollobj; i++) {
       Object *collob = collobjs[i];
-      CollisionModifierData *collmd = (CollisionModifierData *)modifiers_findByType(
+      CollisionModifierData *collmd = (CollisionModifierData *)BKE_modifiers_findby_type(
           collob, eModifierType_Collision);
 
       if (collmd->bvhtree) {
@@ -1658,7 +1658,7 @@ int cloth_bvh_collision(
 
       for (i = 0; i < numcollobj; i++) {
         Object *collob = collobjs[i];
-        CollisionModifierData *collmd = (CollisionModifierData *)modifiers_findByType(
+        CollisionModifierData *collmd = (CollisionModifierData *)BKE_modifiers_findby_type(
             collob, eModifierType_Collision);
 
         if (!collmd->bvhtree) {
@@ -1693,7 +1693,7 @@ int cloth_bvh_collision(
 
       for (i = 0; i < numcollobj; i++) {
         Object *collob = collobjs[i];
-        CollisionModifierData *collmd = (CollisionModifierData *)modifiers_findByType(
+        CollisionModifierData *collmd = (CollisionModifierData *)BKE_modifiers_findby_type(
             collob, eModifierType_Collision);
 
         if (!collmd->bvhtree) {

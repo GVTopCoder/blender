@@ -32,8 +32,8 @@
 #include "draw_cache_impl.h"
 #include "draw_manager.h"
 
-#include "select_private.h"
 #include "select_engine.h"
+#include "select_private.h"
 
 #define SELECT_ENGINE "SELECT_ENGINE"
 
@@ -307,9 +307,6 @@ static void select_draw_scene(void *vedata)
     return;
   }
 
-  /* dithering and AA break color coding, so disable */
-  glDisable(GL_DITHER);
-
   DRW_view_set_active(stl->g_data->view_faces);
 
   if (!DRW_pass_is_empty(psl->depth_only_pass)) {
@@ -381,7 +378,7 @@ RenderEngineType DRW_engine_viewport_select_type = {
     NULL,
     SELECT_ENGINE,
     N_("Select ID"),
-    RE_INTERNAL,
+    RE_INTERNAL | RE_USE_STEREO_VIEWPORT,
     NULL,
     NULL,
     NULL,

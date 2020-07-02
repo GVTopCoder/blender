@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software  Foundation,
+ * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * The Original Code is Copyright (C) 2006 Blender Foundation.
@@ -30,25 +30,25 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_DerivedMesh.h"
-#include "BKE_pbvh.h"
 #include "BKE_cdderivedmesh.h"
+#include "BKE_curve.h"
+#include "BKE_editmesh.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
-#include "BKE_editmesh.h"
-#include "BKE_curve.h"
+#include "BKE_pbvh.h"
 
+#include "DNA_curve_types.h" /* for Curve */
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
-#include "DNA_curve_types.h" /* for Curve */
 
 #include "MEM_guardedalloc.h"
 
-#include <string.h>
 #include <limits.h>
 #include <math.h>
+#include <string.h>
 
 typedef struct {
   DerivedMesh dm;

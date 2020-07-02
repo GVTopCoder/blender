@@ -1,17 +1,17 @@
 /* Apache License, Version 2.0 */
 
-#include "testing/testing.h"
 #include "BLI_ressource_strings.h"
+#include "testing/testing.h"
 
 #define GHASH_INTERNAL_API
 
 #include "MEM_guardedalloc.h"
 
 extern "C" {
-#include "BLI_utildefines.h"
 #include "BLI_ghash.h"
 #include "BLI_rand.h"
 #include "BLI_string.h"
+#include "BLI_utildefines.h"
 #include "PIL_time_utildefines.h"
 }
 
@@ -277,7 +277,7 @@ static void randint_ghash_tests(GHash *ghash, const char *id, const unsigned int
   unsigned int i;
 
   {
-    RNG *rng = BLI_rng_new(0);
+    RNG *rng = BLI_rng_new(1);
     for (i = nbr, dt = data; i--; dt++) {
       *dt = BLI_rng_get_uint(rng);
     }
@@ -386,7 +386,7 @@ static void int4_ghash_tests(GHash *ghash, const char *id, const unsigned int nb
   unsigned int i, j;
 
   {
-    RNG *rng = BLI_rng_new(0);
+    RNG *rng = BLI_rng_new(1);
     for (i = nbr, dt = data; i--; dt++) {
       for (j = 4; j--;) {
         (*dt)[j] = BLI_rng_get_uint(rng);
@@ -493,7 +493,7 @@ static void int2_ghash_tests(GHash *ghash, const char *id, const unsigned int nb
   unsigned int i, j;
 
   {
-    RNG *rng = BLI_rng_new(0);
+    RNG *rng = BLI_rng_new(1);
     for (i = nbr, dt = data; i--; dt++) {
       for (j = 2; j--;) {
         (*dt)[j] = BLI_rng_get_uint(rng);
@@ -604,7 +604,7 @@ static void multi_small_ghash_tests(GHash *ghash, const char *id, const unsigned
 {
   printf("\n========== STARTING %s ==========\n", id);
 
-  RNG *rng = BLI_rng_new(0);
+  RNG *rng = BLI_rng_new(1);
 
   TIMEIT_START(multi_small_ghash);
 

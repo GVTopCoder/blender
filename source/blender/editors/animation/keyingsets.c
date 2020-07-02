@@ -21,11 +21,11 @@
  * \ingroup edanimation
  */
 
-#include <stdio.h>
-#include <stddef.h>
-#include <string.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -33,12 +33,12 @@
 #include "BLI_utildefines.h"
 
 #include "DNA_anim_types.h"
-#include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
-#include "BKE_main.h"
 #include "BKE_animsys.h"
 #include "BKE_context.h"
+#include "BKE_main.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -646,8 +646,8 @@ void ANIM_keyingset_infos_exit(void)
     next = ksi->next;
 
     /* free extra RNA data, and remove from list */
-    if (ksi->ext.free) {
-      ksi->ext.free(ksi->ext.data);
+    if (ksi->rna_ext.free) {
+      ksi->rna_ext.free(ksi->rna_ext.data);
     }
     BLI_freelinkN(&keyingset_type_infos, ksi);
   }

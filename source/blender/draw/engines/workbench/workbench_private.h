@@ -26,9 +26,9 @@
 #include "BKE_studiolight.h"
 
 #include "DNA_image_types.h"
+#include "DNA_userdef_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_world_types.h"
-#include "DNA_userdef_types.h"
 
 #include "DRW_render.h"
 
@@ -88,6 +88,7 @@ typedef struct WORKBENCH_FramebufferList {
   struct GPUFrameBuffer *dof_blur2_fb;
 
   struct GPUFrameBuffer *antialiasing_fb;
+  struct GPUFrameBuffer *antialiasing_in_front_fb;
   struct GPUFrameBuffer *smaa_edge_fb;
   struct GPUFrameBuffer *smaa_weight_fb;
 } WORKBENCH_FramebufferList;
@@ -97,6 +98,7 @@ typedef struct WORKBENCH_TextureList {
   struct GPUTexture *coc_halfres_tx;
   struct GPUTexture *history_buffer_tx;
   struct GPUTexture *depth_buffer_tx;
+  struct GPUTexture *depth_buffer_in_front_tx;
   struct GPUTexture *smaa_search_tx;
   struct GPUTexture *smaa_area_tx;
   struct GPUTexture *dummy_image_tx;
@@ -259,12 +261,16 @@ typedef struct WORKBENCH_PrivateData {
   /* Temporal Antialiasing */
   /** Total number of samples to after which TAA stops accumulating samples. */
   int taa_sample_len;
+  /** Total number of samples of the previous TAA. When changed TAA will be reset. */
+  int taa_sample_len_previous;
   /** Current TAA sample index in [0..taa_sample_len[ range. */
   int taa_sample;
   /** Inverse of taa_sample to divide the accumulation buffer. */
   float taa_sample_inv;
   /** If the view has been updated and TAA needs to be reset. */
   bool view_updated;
+  /** True if the history buffer contains relevant data and false if it could contain garbage. */
+  bool valid_history;
   /** View */
   struct DRWView *view;
   /** Last projection matrix to see if view is still valid. */
@@ -287,7 +293,7 @@ typedef struct WORKBENCH_PrivateData {
   /** Object IDs buffer for curvature & outline. */
   struct GPUTexture *object_id_tx;
 
-  /** Prepass infos for each draw types [transparent][infront][hair]. */
+  /** Pre-pass information for each draw types [transparent][infront][hair]. */
   WORKBENCH_Prepass prepass[2][2][2];
 
   /* Materials */
@@ -331,6 +337,7 @@ typedef struct WORKBENCH_PrivateData {
   bool dof_enabled;
   bool is_playback;
   bool is_navigating;
+  bool reset_next_sample;
 } WORKBENCH_PrivateData; /* Transient data */
 
 typedef struct WORKBENCH_ObjectData {
@@ -455,7 +462,7 @@ DRWShadingGroup *workbench_image_setup_ex(WORKBENCH_PrivateData *wpd,
                                           int mat_nr,
                                           Image *ima,
                                           ImageUser *iuser,
-                                          int interp,
+                                          eGPUSamplerState sampler,
                                           bool hair);
 
 #define workbench_material_setup(wpd, ob, mat_nr, color_type, r_transp) \

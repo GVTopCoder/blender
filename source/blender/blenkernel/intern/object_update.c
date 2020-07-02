@@ -31,26 +31,26 @@
 #include "DNA_scene_types.h"
 
 #include "BLI_blenlib.h"
-#include "BLI_utildefines.h"
-#include "BLI_threads.h"
 #include "BLI_math.h"
+#include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
-#include "BKE_animsys.h"
-#include "BKE_armature.h"
+#include "BKE_DerivedMesh.h"
 #include "BKE_action.h"
+#include "BKE_armature.h"
 #include "BKE_constraint.h"
 #include "BKE_curve.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
 #include "BKE_editmesh.h"
 #include "BKE_effect.h"
+#include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
 #include "BKE_hair.h"
 #include "BKE_image.h"
 #include "BKE_key.h"
+#include "BKE_lattice.h"
 #include "BKE_layer.h"
 #include "BKE_light.h"
-#include "BKE_lattice.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
@@ -59,7 +59,6 @@
 #include "BKE_pointcache.h"
 #include "BKE_pointcloud.h"
 #include "BKE_scene.h"
-#include "BKE_gpencil.h"
 #include "BKE_volume.h"
 
 #include "MEM_guardedalloc.h"
@@ -184,7 +183,7 @@ void BKE_object_handle_data_update(Depsgraph *depsgraph, Scene *scene, Object *o
 #endif
         /* Always compute UVs, vertex colors as orcos for render. */
         cddata_masks.lmask |= CD_MASK_MLOOPUV | CD_MASK_MLOOPCOL;
-        cddata_masks.vmask |= CD_MASK_ORCO;
+        cddata_masks.vmask |= CD_MASK_ORCO | CD_MASK_PROP_COLOR;
       }
       if (em) {
         makeDerivedMesh(depsgraph, scene, ob, em, &cddata_masks); /* was CD_MASK_BAREMESH */
@@ -273,7 +272,7 @@ void BKE_object_handle_data_update(Depsgraph *depsgraph, Scene *scene, Object *o
 
 /**
  * TODO(sergey): Ensure that bounding box is already calculated, and move this
- * into #BKE_object_synchronize_to_original().
+ * into #BKE_object_sync_to_original().
  */
 void BKE_object_eval_boundbox(Depsgraph *depsgraph, Object *object)
 {
@@ -290,7 +289,7 @@ void BKE_object_eval_boundbox(Depsgraph *depsgraph, Object *object)
   }
 }
 
-void BKE_object_synchronize_to_original(Depsgraph *depsgraph, Object *object)
+void BKE_object_sync_to_original(Depsgraph *depsgraph, Object *object)
 {
   if (!DEG_is_active(depsgraph)) {
     return;

@@ -17,9 +17,9 @@
 #ifndef __NODES_H__
 #define __NODES_H__
 
+#include "graph/node.h"
 #include "render/graph.h"
 #include "render/image.h"
-#include "graph/node.h"
 
 #include "util/util_array.h"
 #include "util/util_string.h"
@@ -168,7 +168,16 @@ class SkyTextureNode : public TextureNode {
   float3 sun_direction;
   float turbidity;
   float ground_albedo;
+  bool sun_disc;
+  float sun_size;
+  float sun_elevation;
+  float sun_rotation;
+  int altitude;
+  float air_density;
+  float dust_density;
+  float ozone_density;
   float3 vector;
+  ImageHandle handle;
 };
 
 class OutputNode : public ShaderNode {
@@ -196,6 +205,11 @@ class OutputAOVNode : public ShaderNode {
   float3 color;
 
   ustring name;
+
+  virtual int get_group()
+  {
+    return NODE_GROUP_LEVEL_4;
+  }
 
   /* Don't allow output node de-duplication. */
   virtual bool equals(const ShaderNode & /*other*/)
@@ -225,7 +239,7 @@ class NoiseTextureNode : public TextureNode {
   SHADER_NODE_CLASS(NoiseTextureNode)
 
   int dimensions;
-  float w, scale, detail, distortion;
+  float w, scale, detail, roughness, distortion;
   float3 vector;
 };
 
@@ -286,7 +300,7 @@ class WaveTextureNode : public TextureNode {
   NodeWaveRingsDirection rings_direction;
   NodeWaveProfile profile;
 
-  float scale, distortion, detail, detail_scale, phase;
+  float scale, distortion, detail, detail_scale, detail_roughness, phase;
   float3 vector;
 };
 
@@ -339,7 +353,7 @@ class PointDensityTextureNode : public ShaderNode {
   SHADER_NODE_NO_CLONE_CLASS(PointDensityTextureNode)
   virtual int get_group()
   {
-    return NODE_GROUP_LEVEL_3;
+    return NODE_GROUP_LEVEL_4;
   }
 
   ~PointDensityTextureNode();
@@ -351,10 +365,6 @@ class PointDensityTextureNode : public ShaderNode {
   }
 
   bool has_spatial_varying()
-  {
-    return true;
-  }
-  bool has_object_dependency()
   {
     return true;
   }
@@ -890,10 +900,6 @@ class TextureCoordinateNode : public ShaderNode {
   bool has_spatial_varying()
   {
     return true;
-  }
-  bool has_object_dependency()
-  {
-    return use_transform;
   }
 
   float3 normal_osl;

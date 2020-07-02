@@ -10,22 +10,22 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software  Foundation,
+ * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * The Original Code is Copyright (C) 2016 Kévin Dietrich.
  * All rights reserved.
  */
+#pragma once
 
 /** \file
  * \ingroup balembic
  */
 
-#ifndef __ABC_CUSTOMDATA_H__
-#define __ABC_CUSTOMDATA_H__
-
 #include <Alembic/Abc/All.h>
 #include <Alembic/AbcGeom/All.h>
+
+#include <map>
 
 struct CustomData;
 struct MLoop;
@@ -36,6 +36,9 @@ struct Mesh;
 
 using Alembic::Abc::ICompoundProperty;
 using Alembic::Abc::OCompoundProperty;
+namespace blender {
+namespace io {
+namespace alembic {
 
 struct UVSample {
   std::vector<Imath::V2f> uvs;
@@ -68,6 +71,14 @@ struct CDStreamConfig {
   Alembic::AbcGeom::index_t index;
   Alembic::AbcGeom::index_t ceil_index;
 
+  const char **modifier_error_message;
+
+  /* Alembic needs Blender to keep references to C++ objects (the destructors
+   * finalize the writing to ABC). This map stores OV2fGeomParam objects for the
+   * 2nd and subsequent UV maps; the primary UV map is kept alive by the Alembic
+   * mesh sample itself. */
+  std::map<std::string, Alembic::AbcGeom::OV2fGeomParam> abc_uv_maps;
+
   CDStreamConfig()
       : mloop(NULL),
         totloop(0),
@@ -80,7 +91,8 @@ struct CDStreamConfig {
         weight(0.0f),
         time(0.0f),
         index(0),
-        ceil_index(0)
+        ceil_index(0),
+        modifier_error_message(NULL)
   {
   }
 };
@@ -92,7 +104,7 @@ struct CDStreamConfig {
 const char *get_uv_sample(UVSample &sample, const CDStreamConfig &config, CustomData *data);
 
 void write_custom_data(const OCompoundProperty &prop,
-                       const CDStreamConfig &config,
+                       CDStreamConfig &config,
                        CustomData *data,
                        int data_type);
 
@@ -101,4 +113,6 @@ void read_custom_data(const std::string &iobject_full_name,
                       const CDStreamConfig &config,
                       const Alembic::Abc::ISampleSelector &iss);
 
-#endif /* __ABC_CUSTOMDATA_H__ */
+}  // namespace alembic
+}  // namespace io
+}  // namespace blender

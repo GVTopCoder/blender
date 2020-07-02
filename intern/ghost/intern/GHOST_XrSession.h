@@ -28,8 +28,8 @@
 
 class GHOST_XrContext;
 class GHOST_XrSwapchain;
-struct OpenXRSessionData;
 struct GHOST_XrDrawInfo;
+struct OpenXRSessionData;
 
 class GHOST_XrSession {
  public:
@@ -47,6 +47,7 @@ class GHOST_XrSession {
   LifeExpectancy handleStateChangeEvent(const XrEventDataSessionStateChanged *lifecycle);
 
   bool isRunning() const;
+  bool needsUpsideDownDrawing() const;
 
   void unbindGraphicsContext(); /* Public so context can ensure it's unbound as needed. */
 
@@ -67,7 +68,8 @@ class GHOST_XrSession {
   std::unique_ptr<GHOST_XrDrawInfo> m_draw_info;
 
   void initSystem();
-  void end();
+  void beginSession();
+  void endSession();
 
   void bindGraphicsContext();
 

@@ -38,6 +38,11 @@ typedef struct wmSurface {
   void (*draw)(struct bContext *);
   /** Free customdata, not the surface itself (done by wm_surface API) */
   void (*free_data)(struct wmSurface *);
+
+  /** Called  when surface is activated for drawing (made drawable). */
+  void (*activate)(void);
+  /** Called  when surface is deactivated for drawing (current drawable cleared). */
+  void (*deactivate)(void);
 } wmSurface;
 
 /* Create/Free */
@@ -46,7 +51,7 @@ void wm_surface_remove(wmSurface *surface);
 void wm_surfaces_free(void);
 
 /* Utils */
-void wm_surfaces_iter(struct bContext *C, void (*cb)(bContext *, wmSurface *));
+void wm_surfaces_iter(struct bContext *C, void (*cb)(struct bContext *, wmSurface *));
 
 /* Drawing */
 void wm_surface_make_drawable(wmSurface *surface);

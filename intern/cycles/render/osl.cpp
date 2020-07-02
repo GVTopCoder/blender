@@ -20,10 +20,10 @@
 #include "render/colorspace.h"
 #include "render/graph.h"
 #include "render/light.h"
+#include "render/nodes.h"
 #include "render/osl.h"
 #include "render/scene.h"
 #include "render/shader.h"
-#include "render/nodes.h"
 
 #ifdef WITH_OSL
 
@@ -764,10 +764,6 @@ void OSLCompiler::add(ShaderNode *node, const char *name, bool isfilepath)
       current_shader->has_volume_attribute_dependency = true;
   }
 
-  if (node->has_object_dependency()) {
-    current_shader->has_object_dependency = true;
-  }
-
   if (node->has_integrator_dependency()) {
     current_shader->has_integrator_dependency = true;
   }
@@ -1142,7 +1138,6 @@ void OSLCompiler::compile(OSLGlobals *og, Shader *shader)
     shader->has_surface_spatial_varying = false;
     shader->has_volume_spatial_varying = false;
     shader->has_volume_attribute_dependency = false;
-    shader->has_object_dependency = false;
     shader->has_integrator_dependency = false;
 
     /* generate surface shader */

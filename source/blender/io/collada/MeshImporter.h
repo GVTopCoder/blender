@@ -25,12 +25,12 @@
 #include <vector>
 
 #include "COLLADAFWIndexList.h"
-#include "COLLADAFWPolygons.h"
 #include "COLLADAFWInstanceGeometry.h"
 #include "COLLADAFWMaterialBinding.h"
 #include "COLLADAFWMesh.h"
 #include "COLLADAFWMeshVertexData.h"
 #include "COLLADAFWNode.h"
+#include "COLLADAFWPolygons.h"
 #include "COLLADAFWTextureCoordinateBinding.h"
 #include "COLLADAFWTypes.h"
 #include "COLLADAFWUniqueId.h"
@@ -38,14 +38,13 @@
 #include "ArmatureImporter.h"
 #include "collada_utils.h"
 
-extern "C" {
 #include "BLI_edgehash.h"
+
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
-}
 
 /* only for ArmatureImporter to "see" MeshImporter::get_object_by_geom_uid */
 class MeshImporterBase {

@@ -47,6 +47,7 @@ set(DEFSRC
   rna_fluid.c
   rna_gpencil.c
   rna_gpencil_modifier.c
+  rna_hair.c
   rna_image.c
   rna_key.c
   rna_lattice.c
@@ -77,9 +78,11 @@ set(DEFSRC
   rna_sculpt_paint.c
   rna_sequencer.c
   rna_shader_fx.c
+  rna_simulation.c
   rna_sound.c
   rna_space.c
   rna_speaker.c
+  rna_pointcloud.c
   rna_test.c
   rna_text.c
   rna_texture.c
@@ -95,13 +98,6 @@ set(DEFSRC
   rna_world.c
   rna_xr.c
 )
-
-if(WITH_NEW_OBJECT_TYPES)
-  list(APPEND DEFSRC
-    rna_hair.c
-    rna_pointcloud.c
-  )
-endif()
 
 set(APISRC
   rna_action_api.c
@@ -338,10 +334,6 @@ if(WITH_XR_OPENXR)
   add_definitions(-DWITH_XR_OPENXR)
 endif()
 
-if(WITH_NEW_OBJECT_TYPES)
-  add_definitions(-DWITH_NEW_OBJECT_TYPES)
-endif()
-
 # Build makesrna executable
 blender_include_dirs(
   .
@@ -381,6 +373,10 @@ add_executable(makesrna ${SRC} ${SRC_RNA_INC} ${SRC_DNA_INC})
 
 target_link_libraries(makesrna bf_dna)
 target_link_libraries(makesrna bf_dna_blenlib)
+
+if(WIN32 AND NOT UNIX)
+  target_link_libraries(makesrna ${PTHREADS_LIBRARIES})
+endif()
 
 # Output rna_*_gen.c
 # note (linux only): with crashes try add this after COMMAND: valgrind --leak-check=full --track-origins=yes
@@ -427,3 +423,6 @@ set(LIB
 add_definitions(${GL_DEFINITIONS})
 
 blender_add_lib(bf_rna "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
+
+# Needed so we can use dna_type_offsets.h for defaults initialization.
+add_dependencies(bf_blenkernel bf_dna)

@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software  Foundation,
+ * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
@@ -21,9 +21,9 @@
 #ifndef __DNA_LIGHTPROBE_TYPES_H__
 #define __DNA_LIGHTPROBE_TYPES_H__
 
+#include "DNA_ID.h"
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
-#include "DNA_ID.h"
 
 #include "BLI_assert.h"
 

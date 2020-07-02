@@ -27,12 +27,12 @@
 #  include <io.h>  // for open close read
 #endif
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stddef.h>
-#include <string.h>
-#include <fcntl.h> /* for open */
 #include <errno.h>
+#include <fcntl.h> /* for open */
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -49,8 +49,8 @@
 #include "BKE_global.h"
 #include "BKE_main.h"
 
-#include "BLO_undofile.h"
 #include "BLO_readfile.h"
+#include "BLO_undofile.h"
 #include "BLO_writefile.h"
 
 #include "DEG_depsgraph.h"
@@ -109,7 +109,6 @@ MemFileUndoData *BKE_memfile_undo_encode(Main *bmain, MemFileUndoData *mfu_prev)
     static int counter = 0;
     char filename[FILE_MAX];
     char numstr[32];
-    int fileflags = G.fileflags & ~(G_FILE_HISTORY); /* don't do file history on undo */
 
     /* Calculate current filename. */
     counter++;
@@ -118,12 +117,16 @@ MemFileUndoData *BKE_memfile_undo_encode(Main *bmain, MemFileUndoData *mfu_prev)
     BLI_snprintf(numstr, sizeof(numstr), "%d.blend", counter);
     BLI_join_dirfile(filename, sizeof(filename), BKE_tempdir_session(), numstr);
 
-    /* success = */ /* UNUSED */ BLO_write_file(bmain, filename, fileflags, NULL, NULL);
+    /* success = */ /* UNUSED */ BLO_write_file(
+        bmain, filename, G.fileflags, &(const struct BlendFileWriteParams){0}, NULL);
 
     BLI_strncpy(mfu->filename, filename, sizeof(mfu->filename));
   }
   else {
     MemFile *prevfile = (mfu_prev) ? &(mfu_prev->memfile) : NULL;
+    if (prevfile) {
+      BLO_memfile_clear_future(prevfile);
+    }
     /* success = */ /* UNUSED */ BLO_write_file_mem(bmain, prevfile, &mfu->memfile, G.fileflags);
     mfu->undo_size = mfu->memfile.size;
   }

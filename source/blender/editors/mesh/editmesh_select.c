@@ -23,21 +23,21 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BLI_array.h"
 #include "BLI_bitmap.h"
-#include "BLI_listbase.h"
+#include "BLI_heap.h"
 #include "BLI_linklist.h"
 #include "BLI_linklist_stack.h"
+#include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_math_bits.h"
 #include "BLI_rand.h"
-#include "BLI_array.h"
-#include "BLI_heap.h"
 #include "BLI_utildefines_stack.h"
 
 #include "BKE_context.h"
-#include "BKE_report.h"
 #include "BKE_editmesh.h"
 #include "BKE_layer.h"
+#include "BKE_report.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -46,11 +46,11 @@
 #include "RNA_define.h"
 #include "RNA_enum_types.h"
 
-#include "ED_object.h"
 #include "ED_mesh.h"
+#include "ED_object.h"
 #include "ED_screen.h"
-#include "ED_transform.h"
 #include "ED_select_utils.h"
+#include "ED_transform.h"
 #include "ED_view3d.h"
 
 #include "DNA_mesh_types.h"
@@ -319,7 +319,9 @@ BMVert *EDBM_vert_find_nearest_ex(ViewContext *vc,
   else {
     struct NearestVertUserData data = {{0}};
     const struct NearestVertUserData_Hit *hit = NULL;
-    const eV3DProjTest clip_flag = V3D_PROJ_TEST_CLIP_DEFAULT;
+    const eV3DProjTest clip_flag = RV3D_CLIPPING_ENABLED(vc->v3d, vc->rv3d) ?
+                                       V3D_PROJ_TEST_CLIP_DEFAULT :
+                                       V3D_PROJ_TEST_CLIP_DEFAULT & ~V3D_PROJ_TEST_CLIP_BB;
     BMesh *prev_select_bm = NULL;
 
     static struct {
@@ -2335,6 +2337,8 @@ void EDBM_selectmode_convert(BMEditMesh *em,
           BM_edge_select_set(bm, eed, false);
         }
       }
+      /* Deselect faces without edges selected. */
+      BM_mesh_deselect_flush(bm);
     }
     else if (selectmode_new == SCE_SELECT_VERTEX) {
       /* flush down (face -> vert) */
@@ -2668,8 +2672,9 @@ bool EDBM_selectmode_disable_multi_ex(Scene *scene,
     Object *ob_iter = base_iter->object;
     BMEditMesh *em_iter = BKE_editmesh_from_object(ob_iter);
 
-    EDBM_selectmode_disable(scene, em_iter, selectmode_disable, selectmode_fallback);
-    changed_multi = true;
+    if (EDBM_selectmode_disable(scene, em_iter, selectmode_disable, selectmode_fallback)) {
+      changed_multi = true;
+    }
   }
   return changed_multi;
 }
@@ -3201,8 +3206,12 @@ static int edbm_select_linked_exec(bContext *C, wmOperator *op)
         BMEdge *e;
         BM_ITER_MESH (e, &iter, em->bm, BM_EDGES_OF_MESH) {
           if (!BMO_edge_flag_test(bm, e, BMO_ELE_TAG)) {
-            BM_elem_flag_disable(e->v1, BM_ELEM_TAG);
-            BM_elem_flag_disable(e->v2, BM_ELEM_TAG);
+            /* Check the edge for selected faces,
+             * this supports stepping off isolated vertices which would otherwise be ignored. */
+            if (BM_edge_is_any_face_flag_test(e, BM_ELEM_SELECT)) {
+              BM_elem_flag_disable(e->v1, BM_ELEM_TAG);
+              BM_elem_flag_disable(e->v2, BM_ELEM_TAG);
+            }
           }
         }
       }
@@ -3258,10 +3267,13 @@ static int edbm_select_linked_exec(bContext *C, wmOperator *op)
 
       if (delimit) {
         BM_ITER_MESH (e, &iter, em->bm, BM_EDGES_OF_MESH) {
-          BM_elem_flag_set(
-              e,
-              BM_ELEM_TAG,
-              (BM_elem_flag_test(e, BM_ELEM_SELECT) && BMO_edge_flag_test(bm, e, BMO_ELE_TAG)));
+          /* Check the edge for selected faces,
+           * this supports stepping off isolated edges which would otherwise be ignored. */
+          BM_elem_flag_set(e,
+                           BM_ELEM_TAG,
+                           (BM_elem_flag_test(e, BM_ELEM_SELECT) &&
+                            (BMO_edge_flag_test(bm, e, BMO_ELE_TAG) ||
+                             !BM_edge_is_any_face_flag_test(e, BM_ELEM_SELECT))));
         }
       }
       else {

@@ -25,13 +25,13 @@
 
 /* Used for PolyFill */
 #ifndef MATH_STANDALONE /* define when building outside blender */
-#  include "MEM_guardedalloc.h"
+#  include "BKE_curve.h"
+#  include "BKE_displist.h"
 #  include "BLI_blenlib.h"
 #  include "BLI_boxpack_2d.h"
 #  include "BLI_convexhull_2d.h"
 #  include "BLI_delaunay_2d.h"
-#  include "BKE_displist.h"
-#  include "BKE_curve.h"
+#  include "MEM_guardedalloc.h"
 #endif
 
 #include "BLI_math.h"
@@ -1419,7 +1419,7 @@ static void boxPack_ToPyObject(PyObject *value, BoxPack **boxarray)
 PyDoc_STRVAR(M_Geometry_box_pack_2d_doc,
              ".. function:: box_pack_2d(boxes)\n"
              "\n"
-             "   Returns the normal of the 3D tri or quad.\n"
+             "   Returns a tuple with the width and height of the packed bounding box.\n"
              "\n"
              "   :arg boxes: list of boxes, each box is a list where the first 4 items are [x, y, "
              "width, height, ...] other items are ignored.\n"

@@ -22,12 +22,12 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
-#include "BLI_string.h"
+#include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_memarena.h"
 #include "BLI_mempool.h"
-#include "BLI_listbase.h"
+#include "BLI_string.h"
+#include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
 
@@ -138,6 +138,8 @@ static void bmo_op_slots_init(const BMOSlotType *slot_types, BMOpSlot *slot_args
                  BMO_OP_SLOT_SUBTYPE_INT_ENUM,
                  BMO_OP_SLOT_SUBTYPE_INT_FLAG)) {
           slot->data.enum_data.flags = slot_types[i].enum_flags;
+          /* Set the first value of the enum as the default value. */
+          slot->data.i = slot->data.enum_data.flags[0].value;
         }
       default:
         break;

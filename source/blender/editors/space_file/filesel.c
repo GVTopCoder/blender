@@ -21,33 +21,34 @@
  * \ingroup spfile
  */
 
-#include <string.h>
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
 
 /* path/file handling stuff */
 #ifdef WIN32
-#  include <io.h>
-#  include <direct.h>
 #  include "BLI_winstuff.h"
+#  include <direct.h>
+#  include <io.h>
 #else
-#  include <unistd.h>
-#  include <sys/times.h>
 #  include <dirent.h>
+#  include <sys/times.h>
+#  include <unistd.h>
 #endif
 
-#include "DNA_space_types.h"
 #include "DNA_screen_types.h"
+#include "DNA_space_types.h"
 #include "DNA_userdef_types.h"
 
 #include "MEM_guardedalloc.h"
 
 #include "BLI_blenlib.h"
-#include "BLI_utildefines.h"
 #include "BLI_fnmatch.h"
+#include "BLI_math_base.h"
+#include "BLI_utildefines.h"
 
 #include "BLO_readfile.h"
 
@@ -156,7 +157,7 @@ short ED_fileselect_set_params(SpaceFile *sfile)
     }
 
     if (params->dir[0]) {
-      BLI_cleanup_dir(blendfile_path, params->dir);
+      BLI_path_normalize_dir(blendfile_path, params->dir);
       BLI_path_abs(params->dir, blendfile_path);
     }
 
@@ -758,11 +759,11 @@ void ED_fileselect_init_layout(struct SpaceFile *sfile, ARegion *region)
     layout->attribute_column_header_h = 0;
     layout->offset_top = 0;
     if (layout->flow_columns > 0) {
-      layout->rows = numfiles / layout->flow_columns + 1;  // XXX dirty, modulo is zero
+      layout->rows = divide_ceil_u(numfiles, layout->flow_columns);
     }
     else {
       layout->flow_columns = 1;
-      layout->rows = numfiles + 1;  // XXX dirty, modulo is zero
+      layout->rows = numfiles;
     }
     layout->height = sfile->layout->rows * (layout->tile_h + 2 * layout->tile_border_y) +
                      layout->tile_border_y * 2 - layout->offset_top;
@@ -807,11 +808,11 @@ void ED_fileselect_init_layout(struct SpaceFile *sfile, ARegion *region)
     file_attribute_columns_init(params, layout);
 
     if (layout->rows > 0) {
-      layout->flow_columns = numfiles / layout->rows + 1;  // XXX dirty, modulo is zero
+      layout->flow_columns = divide_ceil_u(numfiles, layout->rows);
     }
     else {
       layout->rows = 1;
-      layout->flow_columns = numfiles + 1;  // XXX dirty, modulo is zero
+      layout->flow_columns = numfiles;
     }
     layout->width = sfile->layout->flow_columns * (layout->tile_w + 2 * layout->tile_border_x) +
                     layout->tile_border_x * 2;
@@ -924,7 +925,7 @@ int autocomplete_directory(struct bContext *C, char *str, void *UNUSED(arg_v))
 
       match = UI_autocomplete_end(autocpl, str);
       if (match == AUTOCOMPLETE_FULL_MATCH) {
-        BLI_add_slash(str);
+        BLI_path_slash_ensure(str);
       }
     }
   }

@@ -48,10 +48,10 @@ void main()
   gl_PointSize = sizeVertex * 2.0;
   /* Make selected and active vertex always on top. */
   if ((data.x & VERT_SELECTED) != 0) {
-    gl_Position.z -= 1e-7;
+    gl_Position.z -= 5e-7 * abs(gl_Position.w);
   }
   if ((data.x & VERT_ACTIVE) != 0) {
-    gl_Position.z -= 1e-7;
+    gl_Position.z -= 5e-7 * abs(gl_Position.w);
   }
 
   bool occluded = test_occlusion();
@@ -69,6 +69,10 @@ void main()
   float bweight = float(m_data.w) / 255.0;
   finalColorOuter = EDIT_MESH_edge_color_outer(m_data.y, m_data.x, crease, bweight);
 
+  if (finalColorOuter.a > 0.0) {
+    gl_Position.z -= 5e-7 * abs(gl_Position.w);
+  }
+
   bool occluded = false; /* Done in fragment shader */
 
 #elif defined(FACE)
@@ -79,7 +83,7 @@ void main()
   finalColor = EDIT_MESH_facedot_color(norAndFlag.w);
 
   /* Bias Facedot Z position in clipspace. */
-  gl_Position.z -= 0.00035;
+  gl_Position.z -= (ProjectionMatrix[3][3] == 0.0) ? 0.00035 : 1e-6;
   gl_PointSize = sizeFaceDot;
 
   bool occluded = test_occlusion();

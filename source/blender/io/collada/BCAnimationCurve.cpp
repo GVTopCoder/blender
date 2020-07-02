@@ -89,12 +89,12 @@ void BCAnimationCurve::init_pointer_rna(Object *ob)
 
 void BCAnimationCurve::delete_fcurve(FCurve *fcu)
 {
-  free_fcurve(fcu);
+  BKE_fcurve_free(fcu);
 }
 
 FCurve *BCAnimationCurve::create_fcurve(int array_index, const char *rna_path)
 {
-  FCurve *fcu = (FCurve *)MEM_callocN(sizeof(FCurve), "FCurve");
+  FCurve *fcu = BKE_fcurve_create();
   fcu->flag = (FCURVE_VISIBLE | FCURVE_AUTO_HANDLES | FCURVE_SELECTED);
   fcu->rna_path = BLI_strdupn(rna_path, strlen(rna_path));
   fcu->array_index = array_index;
@@ -230,7 +230,7 @@ const int BCAnimationCurve::closest_index_above(const float sample_frame, const 
     return -1;
   }
 
-  const int cframe = fcurve->bezt[start_at].vec[1][0];  // inacurate!
+  const int cframe = fcurve->bezt[start_at].vec[1][0];  // inaccurate!
 
   if (fabs(cframe - sample_frame) < 0.00001) {
     return start_at;
@@ -252,7 +252,7 @@ const int BCAnimationCurve::closest_index_below(const float sample_frame) const
   for (int fcu_index = 0; fcu_index < fcurve->totvert; fcu_index++) {
     upper_index = fcu_index;
 
-    const int cframe = fcurve->bezt[fcu_index].vec[1][0];  // inacurate!
+    const int cframe = fcurve->bezt[fcu_index].vec[1][0];  // inaccurate!
     if (cframe <= sample_frame) {
       lower_frame = cframe;
       lower_index = fcu_index;

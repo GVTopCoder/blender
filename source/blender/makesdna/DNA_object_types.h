@@ -27,11 +27,11 @@
 
 #include "DNA_object_enums.h"
 
-#include "DNA_defs.h"
-#include "DNA_customdata_types.h"
-#include "DNA_listBase.h"
 #include "DNA_ID.h"
 #include "DNA_action_types.h" /* bAnimVizSettings */
+#include "DNA_customdata_types.h"
+#include "DNA_defs.h"
+#include "DNA_listBase.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -462,6 +462,7 @@ enum {
 
   OB_VOLUME = 29,
 
+  /* Keep last. */
   OB_TYPE_MAX,
 };
 

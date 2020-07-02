@@ -19,9 +19,9 @@
  */
 
 #include "abc_reader_object.h"
+#include "abc_axis_conversion.h"
 #include "abc_util.h"
 
-extern "C" {
 #include "DNA_cachefile_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_modifier_types.h"
@@ -32,15 +32,18 @@ extern "C" {
 #include "BKE_modifier.h"
 #include "BKE_object.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 #include "BLI_math_geom.h"
 #include "BLI_string.h"
-}
+#include "BLI_utildefines.h"
 
 using Alembic::AbcGeom::IObject;
 using Alembic::AbcGeom::IXform;
 using Alembic::AbcGeom::IXformSchema;
+
+namespace blender {
+namespace io {
+namespace alembic {
 
 AbcObjectReader::AbcObjectReader(const IObject &object, ImportSettings &settings)
     : m_name(""),
@@ -295,7 +298,7 @@ void AbcObjectReader::read_matrix(float r_mat[4][4] /* local matrix */,
 
 void AbcObjectReader::addCacheModifier()
 {
-  ModifierData *md = modifier_new(eModifierType_MeshSequenceCache);
+  ModifierData *md = BKE_modifier_new(eModifierType_MeshSequenceCache);
   BLI_addtail(&m_object->modifiers, md);
 
   MeshSeqCacheModifierData *mcmd = reinterpret_cast<MeshSeqCacheModifierData *>(md);
@@ -331,3 +334,7 @@ void AbcObjectReader::decref()
   m_refcount--;
   BLI_assert(m_refcount >= 0);
 }
+
+}  // namespace alembic
+}  // namespace io
+}  // namespace blender

@@ -24,8 +24,8 @@
 
 #include "UI_resources.h"
 
-#include "overlay_private.h"
 #include "draw_manager_text.h"
+#include "overlay_private.h"
 
 #define BG_SOLID 0
 #define BG_GRADIENT 1
@@ -71,14 +71,15 @@ void OVERLAY_background_cache_init(OVERLAY_Data *vedata)
     }
     else {
       switch (UI_GetThemeValue(TH_BACKGROUND_TYPE)) {
-        case TH_BACKGROUND_SINGLE_COLOR:
-          background_type = BG_SOLID;
-          break;
         case TH_BACKGROUND_GRADIENT_LINEAR:
           background_type = BG_GRADIENT;
           break;
         case TH_BACKGROUND_GRADIENT_RADIAL:
           background_type = BG_RADIAL;
+          break;
+        default:
+        case TH_BACKGROUND_SINGLE_COLOR:
+          background_type = BG_SOLID;
           break;
       }
     }

@@ -31,8 +31,8 @@
 #ifndef __DNA_SEQUENCE_TYPES_H__
 #define __DNA_SEQUENCE_TYPES_H__
 
-#include "DNA_defs.h"
 #include "DNA_color_types.h"
+#include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_vec_types.h"
 #include "DNA_vfont_types.h"
@@ -468,6 +468,7 @@ typedef struct SequencerScopes {
 #define SEQ_SPEED_INTEGRATE (1 << 0)
 #define SEQ_SPEED_UNUSED_1 (1 << 1) /* cleared */
 #define SEQ_SPEED_COMPRESS_IPO_Y (1 << 2)
+#define SEQ_SPEED_USE_INTERPOLATION (1 << 3)
 
 /* ***************** SEQUENCE ****************** */
 #define SEQ_NAME_MAXSTR 64
@@ -634,7 +635,7 @@ enum {
   seqModifierType_Mask = 5,
   seqModifierType_WhiteBalance = 6,
   seqModifierType_Tonemap = 7,
-
+  /* Keep last. */
   NUM_SEQUENCE_MODIFIER_TYPES,
 };
 

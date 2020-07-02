@@ -29,17 +29,16 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_fileops.h"
 #include "BLI_ghash.h"
 #include "BLI_listbase.h"
 #include "BLI_path_util.h"
 #include "BLI_string.h"
 #include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
 
-#include "BKE_animsys.h"
 #include "BKE_cachefile.h"
 #include "BKE_idtype.h"
 #include "BKE_lib_id.h"
@@ -98,6 +97,7 @@ IDTypeInfo IDType_ID_CF = {
     .copy_data = cache_file_copy_data,
     .free_data = cache_file_free_data,
     .make_local = NULL,
+    .foreach_id = NULL,
 };
 
 /* TODO: make this per cache file to avoid global locks. */

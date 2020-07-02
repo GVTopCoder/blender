@@ -21,10 +21,10 @@
  * \ingroup spaction
  */
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <float.h>
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
@@ -35,9 +35,9 @@
 #include "DNA_anim_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_key_types.h"
+#include "DNA_mask_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
-#include "DNA_mask_types.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -47,8 +47,8 @@
 #include "BKE_animsys.h"
 #include "BKE_context.h"
 #include "BKE_fcurve.h"
-#include "BKE_gpencil.h"
 #include "BKE_global.h"
+#include "BKE_gpencil.h"
 #include "BKE_key.h"
 #include "BKE_nla.h"
 #include "BKE_report.h"
@@ -57,11 +57,11 @@
 
 #include "ED_anim_api.h"
 #include "ED_gpencil.h"
-#include "ED_keyframing.h"
 #include "ED_keyframes_edit.h"
-#include "ED_screen.h"
+#include "ED_keyframing.h"
 #include "ED_markers.h"
 #include "ED_mask.h"
+#include "ED_screen.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -218,7 +218,7 @@ static bool get_keyframe_extents(bAnimContext *ac, float *min, float *max, const
         float tmin, tmax;
 
         /* get range and apply necessary scaling before processing */
-        if (calc_fcurve_range(fcu, &tmin, &tmax, onlySel, false)) {
+        if (BKE_fcurve_calc_range(fcu, &tmin, &tmax, onlySel, false)) {
 
           if (adt) {
             tmin = BKE_nla_tweakedit_remap(adt, tmin, NLATIME_CONVERT_MAP);
@@ -313,8 +313,8 @@ void ACTION_OT_previewrange_set(wmOperatorType *ot)
 /**
  * Find the extents of the active channel
  *
- * \param[out] min Bottom y-extent of channel
- * \param[out] max Top y-extent of channel
+ * \param[out] min: Bottom y-extent of channel
+ * \param[out] max: Top y-extent of channel
  * \return Success of finding a selected channel
  */
 static bool actkeys_channels_get_selected_extents(bAnimContext *ac, float *min, float *max)
@@ -448,7 +448,7 @@ static int actkeys_viewsel_exec(bContext *C, wmOperator *UNUSED(op))
 void ACTION_OT_view_all(wmOperatorType *ot)
 {
   /* identifiers */
-  ot->name = "View All";
+  ot->name = "Frame All";
   ot->idname = "ACTION_OT_view_all";
   ot->description = "Reset viewable area to show full keyframe range";
 
@@ -490,7 +490,7 @@ void ACTION_OT_view_frame(wmOperatorType *ot)
   /* identifiers */
   ot->name = "Go to Current Frame";
   ot->idname = "ACTION_OT_view_frame";
-  ot->description = "Move the view to the playhead";
+  ot->description = "Move the view to the current frame";
 
   /* api callbacks */
   ot->exec = actkeys_view_frame_exec;
@@ -800,10 +800,17 @@ static void insert_gpencil_keys(bAnimContext *ac, short mode)
     add_frame_mode = GP_GETFRAME_ADD_NEW;
   }
 
-  /* insert gp frames */
+  /* Insert gp frames. */
+  bGPdata *gpd_old = NULL;
   for (ale = anim_data.first; ale; ale = ale->next) {
+    bGPdata *gpd = (bGPdata *)ale->id;
     bGPDlayer *gpl = (bGPDlayer *)ale->data;
     BKE_gpencil_layer_frame_get(gpl, CFRA, add_frame_mode);
+    /* Check if the gpd changes to tag only once. */
+    if (gpd != gpd_old) {
+      BKE_gpencil_tag(gpd);
+      gpd_old = gpd;
+    }
   }
 
   ANIM_animdata_update(ac, &anim_data);
@@ -839,6 +846,9 @@ static int actkeys_insertkey_exec(bContext *C, wmOperator *op)
   }
 
   /* set notifier that keyframes have changed */
+  if (ac.datatype == ANIMCONT_GPENCIL) {
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
   WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME | NA_ADDED, NULL);
 
   return OPERATOR_FINISHED;
@@ -888,7 +898,7 @@ static void duplicate_action_keys(bAnimContext *ac)
       duplicate_fcurve_keys((FCurve *)ale->key_data);
     }
     else if (ale->type == ANIMTYPE_GPLAYER) {
-      ED_gplayer_frames_duplicate((bGPDlayer *)ale->data);
+      ED_gpencil_layer_frames_duplicate((bGPDlayer *)ale->data);
     }
     else if (ale->type == ANIMTYPE_MASKLAYER) {
       ED_masklayer_frames_duplicate((MaskLayer *)ale->data);
@@ -964,7 +974,7 @@ static bool delete_action_keys(bAnimContext *ac)
     bool changed = false;
 
     if (ale->type == ANIMTYPE_GPLAYER) {
-      changed = ED_gplayer_frames_delete((bGPDlayer *)ale->data);
+      changed = ED_gpencil_layer_frames_delete((bGPDlayer *)ale->data);
     }
     else if (ale->type == ANIMTYPE_MASKLAYER) {
       changed = ED_masklayer_frames_delete((MaskLayer *)ale->data);
@@ -1539,7 +1549,7 @@ static void setkeytype_gpencil_keys(bAnimContext *ac, short mode)
   /* loop through each layer */
   for (ale = anim_data.first; ale; ale = ale->next) {
     if (ale->type == ANIMTYPE_GPLAYER) {
-      ED_gplayer_frames_keytype_set(ale->data, mode);
+      ED_gpencil_layer_frames_keytype_set(ale->data, mode);
       ale->update |= ANIM_UPDATE_DEPS;
     }
   }
@@ -1740,7 +1750,7 @@ static void snap_action_keys(bAnimContext *ac, short mode)
     AnimData *adt = ANIM_nla_mapping_get(ac, ale);
 
     if (ale->type == ANIMTYPE_GPLAYER) {
-      ED_gplayer_snap_frames(ale->data, ac->scene, mode);
+      ED_gpencil_layer_snap_frames(ale->data, ac->scene, mode);
     }
     else if (ale->type == ANIMTYPE_MASKLAYER) {
       ED_masklayer_snap_frames(ale->data, ac->scene, mode);
@@ -1870,7 +1880,7 @@ static void mirror_action_keys(bAnimContext *ac, short mode)
     AnimData *adt = ANIM_nla_mapping_get(ac, ale);
 
     if (ale->type == ANIMTYPE_GPLAYER) {
-      ED_gplayer_mirror_frames(ale->data, ac->scene, mode);
+      ED_gpencil_layer_mirror_frames(ale->data, ac->scene, mode);
     }
     else if (ale->type == ANIMTYPE_MASKLAYER) {
       /* TODO */

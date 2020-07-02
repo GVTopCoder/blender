@@ -108,7 +108,7 @@ struct Scene *BKE_scene_set_name(struct Main *bmain, const char *name);
 struct ToolSettings *BKE_toolsettings_copy(struct ToolSettings *toolsettings, const int flag);
 void BKE_toolsettings_free(struct ToolSettings *toolsettings);
 
-struct Scene *BKE_scene_copy(struct Main *bmain, struct Scene *sce, int type);
+struct Scene *BKE_scene_duplicate(struct Main *bmain, struct Scene *sce, eSceneCopyMethod type);
 void BKE_scene_groups_relink(struct Scene *sce);
 
 struct Scene *BKE_scene_find_from_collection(const struct Main *bmain,
@@ -141,6 +141,7 @@ int BKE_scene_orientation_slot_get_index(const struct TransformOrientationSlot *
 /* **  Scene evaluation ** */
 
 void BKE_scene_update_sound(struct Depsgraph *depsgraph, struct Main *bmain);
+void BKE_scene_update_tag_audio_volume(struct Depsgraph *, struct Scene *scene);
 
 void BKE_scene_graph_update_tagged(struct Depsgraph *depsgraph, struct Main *bmain);
 void BKE_scene_graph_evaluated_ensure(struct Depsgraph *depsgraph, struct Main *bmain);

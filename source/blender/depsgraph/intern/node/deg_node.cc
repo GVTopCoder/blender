@@ -36,7 +36,8 @@
 #include "intern/node/deg_node_operation.h"
 #include "intern/node/deg_node_time.h"
 
-namespace DEG {
+namespace blender {
+namespace deg {
 
 const char *nodeClassAsString(NodeClass node_class)
 {
@@ -114,6 +115,8 @@ const char *nodeTypeAsString(NodeType type)
       return "ARMATURE";
     case NodeType::GENERIC_DATABLOCK:
       return "GENERIC_DATABLOCK";
+    case NodeType::SIMULATION:
+      return "SIMULATION";
 
     /* Total number of meaningful node types. */
     case NodeType::NUM_TYPES:
@@ -172,6 +175,7 @@ eDepsSceneComponentType nodeTypeToSceneComponent(NodeType type)
     case NodeType::SHADING:
     case NodeType::CACHE:
     case NodeType::PROXY:
+    case NodeType::SIMULATION:
       return DEG_SCENE_COMP_PARAMETERS;
   }
   BLI_assert(!"Unhandled node type, not suppsed to happen.");
@@ -245,6 +249,7 @@ eDepsObjectComponentType nodeTypeToObjectComponent(NodeType type)
     case NodeType::BATCH_CACHE:
     case NodeType::DUPLI:
     case NodeType::SYNCHRONIZATION:
+    case NodeType::SIMULATION:
     case NodeType::UNDEFINED:
     case NodeType::NUM_TYPES:
       return DEG_OB_COMP_PARAMETERS;
@@ -336,4 +341,5 @@ void deg_register_base_depsnodes()
   register_node_typeinfo(&DNTI_ID_REF);
 }
 
-}  // namespace DEG
+}  // namespace deg
+}  // namespace blender

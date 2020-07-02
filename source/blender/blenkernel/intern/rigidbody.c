@@ -22,19 +22,19 @@
  * \brief Blender-side interface and methods for dealing with Rigid Body simulations
  */
 
+#include <float.h>
+#include <limits.h>
+#include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <stddef.h>
-#include <float.h>
-#include <math.h>
-#include <limits.h>
 
 #include "CLG_log.h"
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_math.h"
 #include "BLI_listbase.h"
+#include "BLI_math.h"
 
 #ifdef WITH_BULLET
 #  include "RBI_api.h"
@@ -44,8 +44,8 @@
 #include "DNA_collection_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
-#include "DNA_object_types.h"
 #include "DNA_object_force_types.h"
+#include "DNA_object_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
@@ -1027,6 +1027,11 @@ static void rigidbody_validate_sim_constraint(RigidBodyWorld *rbw, Object *ob, b
       return;
     }
 
+    /* When 'rbc->type' is unknown. */
+    if (rbc->physics_constraint == NULL) {
+      return;
+    }
+
     RB_constraint_set_enabled(rbc->physics_constraint, rbc->flag & RBC_FLAG_ENABLED);
 
     if (rbc->flag & RBC_FLAG_USE_BREAKING) {
@@ -1343,9 +1348,10 @@ void BKE_rigidbody_main_collection_object_add(Main *bmain, Collection *collectio
 /* ************************************** */
 /* Utilities API */
 
-/* Get RigidBody world for the given scene, creating one if needed
+/**
+ * Get RigidBody world for the given scene, creating one if needed
  *
- * \param scene: Scene to find active Rigid Body world for
+ * \param scene: Scene to find active Rigid Body world for.
  */
 RigidBodyWorld *BKE_rigidbody_get_world(Scene *scene)
 {
@@ -1641,7 +1647,7 @@ static void rigidbody_update_sim_ob(
       /* Calculate net force of effectors, and apply to sim object:
        * - we use 'central force' since apply force requires a "relative position"
        *   which we don't have... */
-      BKE_effectors_apply(effectors, NULL, effector_weights, &epoint, eff_force, NULL);
+      BKE_effectors_apply(effectors, NULL, effector_weights, &epoint, eff_force, NULL, NULL);
       if (G.f & G_DEBUG) {
         printf("\tapplying force (%f,%f,%f) to '%s'\n",
                eff_force[0],
@@ -2111,6 +2117,7 @@ void BKE_rigidbody_ensure_local_object(Main *bmain, Object *ob)
 
 bool BKE_rigidbody_add_object(Main *bmain, Scene *scene, Object *ob, int type, ReportList *reports)
 {
+  BKE_report(reports, RPT_ERROR, "Compiled without Bullet physics engine");
   return false;
 }
 

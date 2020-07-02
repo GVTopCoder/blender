@@ -2379,7 +2379,10 @@ bool isect_tri_tri_epsilon_v3(const float t_a0[3],
         if (UNLIKELY(edge_fac == -1.0f)) {
           /* pass */
         }
-        else if (edge_fac > 0.0f && edge_fac < 1.0f) {
+        /* Important to include 0.0f and 1.0f as one of the triangles vertices may be placed
+         * exactly on the plane. In this case both it's edges will have a factor of 0 or 1,
+         * but not be going through the plane. See T73566. */
+        else if (edge_fac >= 0.0f && edge_fac <= 1.0f) {
           float ix_tri[3];
           float span_fac;
 
@@ -3245,19 +3248,27 @@ bool isect_ray_aabb_v3_simple(const float orig[3],
   }
 }
 
-/* find closest point to p on line through (l1, l2) and return lambda,
- * where (0 <= lambda <= 1) when cp is in the line segment (l1, l2)
+float closest_to_ray_v3(float r_close[3],
+                        const float p[3],
+                        const float ray_orig[3],
+                        const float ray_dir[3])
+{
+  float h[3], lambda;
+  sub_v3_v3v3(h, p, ray_orig);
+  lambda = dot_v3v3(ray_dir, h) / dot_v3v3(ray_dir, ray_dir);
+  madd_v3_v3v3fl(r_close, ray_orig, ray_dir, lambda);
+  return lambda;
+}
+
+/**
+ * Find closest point to p on line through (l1, l2) and return lambda,
+ * where (0 <= lambda <= 1) when cp is in the line segment (l1, l2).
  */
 float closest_to_line_v3(float r_close[3], const float p[3], const float l1[3], const float l2[3])
 {
-  float h[3], u[3], lambda;
+  float u[3];
   sub_v3_v3v3(u, l2, l1);
-  sub_v3_v3v3(h, p, l1);
-  lambda = dot_v3v3(u, h) / dot_v3v3(u, u);
-  r_close[0] = l1[0] + u[0] * lambda;
-  r_close[1] = l1[1] + u[1] * lambda;
-  r_close[2] = l1[2] + u[2] * lambda;
-  return lambda;
+  return closest_to_ray_v3(r_close, p, l1, u);
 }
 
 float closest_to_line_v2(float r_close[2], const float p[2], const float l1[2], const float l2[2])
@@ -4217,7 +4228,19 @@ static float mean_value_half_tan_v2(const struct Float2_Len *d_curr,
 
 void interp_weights_poly_v3(float *w, float v[][3], const int n, const float co[3])
 {
-  const float eps = 1e-5f; /* take care, low values cause [#36105] */
+  /* Before starting to calculate the weight, we need to figure out the floating point precision we
+   * can expect from the supplied data. */
+  float max_value = 0;
+
+  for (int i = 0; i < n; i++) {
+    max_value = max_ff(max_value, fabsf(v[i][0] - co[0]));
+    max_value = max_ff(max_value, fabsf(v[i][1] - co[1]));
+    max_value = max_ff(max_value, fabsf(v[i][2] - co[2]));
+  }
+
+  /* These to values we derived by empirically testing different values that works for the test
+   * files in D7772. */
+  const float eps = 16.0f * FLT_EPSILON * max_value;
   const float eps_sq = eps * eps;
   const float *v_curr, *v_next;
   float ht_prev, ht; /* half tangents */
@@ -4290,8 +4313,20 @@ void interp_weights_poly_v3(float *w, float v[][3], const int n, const float co[
 
 void interp_weights_poly_v2(float *w, float v[][2], const int n, const float co[2])
 {
-  const float eps = 1e-5f; /* take care, low values cause [#36105] */
+  /* Before starting to calculate the weight, we need to figure out the floating point precision we
+   * can expect from the supplied data. */
+  float max_value = 0;
+
+  for (int i = 0; i < n; i++) {
+    max_value = max_ff(max_value, fabsf(v[i][0] - co[0]));
+    max_value = max_ff(max_value, fabsf(v[i][1] - co[1]));
+  }
+
+  /* These to values we derived by empirically testing different values that works for the test
+   * files in D7772. */
+  const float eps = 16.0f * FLT_EPSILON * max_value;
   const float eps_sq = eps * eps;
+
   const float *v_curr, *v_next;
   float ht_prev, ht; /* half tangents */
   float totweight = 0.0f;
@@ -5356,7 +5391,7 @@ void vcloud_estimate_transform_v3(const int list_size,
     }
     if (lrot || lscale) { /* caller does not want rot nor scale, strange but legal */
       /* so now do some reverse engineering and see if we can
-       * split rotation from scale -> Polardecompose */
+       * split rotation from scale -> Polar-decompose. */
       /* build 'projection' matrix */
       float m[3][3], mr[3][3], q[3][3], qi[3][3];
       float va[3], vb[3], stunt[3];

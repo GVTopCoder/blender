@@ -51,10 +51,12 @@
 #include "util/util_function.h"
 #include "util/util_logging.h"
 #include "util/util_map.h"
+#include "util/util_openimagedenoise.h"
 #include "util/util_opengl.h"
 #include "util/util_optimization.h"
 #include "util/util_progress.h"
 #include "util/util_system.h"
+#include "util/util_task.h"
 #include "util/util_thread.h"
 
 CCL_NAMESPACE_BEGIN
@@ -161,7 +163,7 @@ class CPUSplitKernel : public DeviceSplitKernel {
   virtual SplitKernelFunction *get_split_kernel_function(const string &kernel_name,
                                                          const DeviceRequestedFeatures &);
   virtual int2 split_kernel_local_size();
-  virtual int2 split_kernel_global_size(device_memory &kg, device_memory &data, DeviceTask *task);
+  virtual int2 split_kernel_global_size(device_memory &kg, device_memory &data, DeviceTask &task);
   virtual uint64_t state_buffer_size(device_memory &kg, device_memory &data, size_t num_threads);
 };
 
@@ -176,6 +178,10 @@ class CPUDevice : public Device {
 #ifdef WITH_OSL
   OSLGlobals osl_globals;
 #endif
+#ifdef WITH_OPENIMAGEDENOISE
+  oidn::DeviceRef oidn_device;
+  oidn::FilterRef oidn_filter;
+#endif
 
   bool use_split_kernel;
 
@@ -188,6 +194,7 @@ class CPUDevice : public Device {
       convert_to_byte_kernel;
   KernelFunctions<void (*)(KernelGlobals *, uint4 *, float4 *, int, int, int, int, int)>
       shader_kernel;
+  KernelFunctions<void (*)(KernelGlobals *, float *, int, int, int, int, int)> bake_kernel;
 
   KernelFunctions<void (*)(
       int, TileInfo *, int, int, float *, float *, float *, float *, float *, int *, int, int)>
@@ -270,6 +277,7 @@ class CPUDevice : public Device {
         REGISTER_KERNEL(convert_to_half_float),
         REGISTER_KERNEL(convert_to_byte),
         REGISTER_KERNEL(shader),
+        REGISTER_KERNEL(bake),
         REGISTER_KERNEL(filter_divide_shadow),
         REGISTER_KERNEL(filter_get_feature),
         REGISTER_KERNEL(filter_write_feature),
@@ -330,7 +338,7 @@ class CPUDevice : public Device {
 
   ~CPUDevice()
   {
-    task_pool.stop();
+    task_pool.cancel();
     texture_info.free();
   }
 
@@ -342,17 +350,6 @@ class CPUDevice : public Device {
   virtual BVHLayoutMask get_bvh_layout_mask() const
   {
     BVHLayoutMask bvh_layout_mask = BVH_LAYOUT_BVH2;
-    if (DebugFlags().cpu.has_sse2() && system_cpu_support_sse2()) {
-      bvh_layout_mask |= BVH_LAYOUT_BVH4;
-    }
-    /* MSVC does not support the -march=native switch and you always end up  */
-    /* with an sse2 kernel when you use WITH_KERNEL_NATIVE. We *cannot* feed */
-    /* that kernel BVH8 even if the CPU flags would allow for it. */
-#if (defined(__x86_64__) || defined(_M_X64)) && !(defined(_MSC_VER) && defined(WITH_KERNEL_NATIVE))
-    if (DebugFlags().cpu.has_avx2() && system_cpu_support_avx2()) {
-      bvh_layout_mask |= BVH_LAYOUT_BVH8;
-    }
-#endif
 #ifdef WITH_EMBREE
     bvh_layout_mask |= BVH_LAYOUT_EMBREE;
 #endif /* WITH_EMBREE */
@@ -525,25 +522,17 @@ class CPUDevice : public Device {
 #endif
   }
 
-  void thread_run(DeviceTask *task)
+  void thread_run(DeviceTask &task)
   {
-    if (task->type == DeviceTask::RENDER)
-      thread_render(*task);
-    else if (task->type == DeviceTask::SHADER)
-      thread_shader(*task);
-    else if (task->type == DeviceTask::FILM_CONVERT)
-      thread_film_convert(*task);
-    else if (task->type == DeviceTask::DENOISE_BUFFER)
-      thread_denoise(*task);
+    if (task.type == DeviceTask::RENDER)
+      thread_render(task);
+    else if (task.type == DeviceTask::SHADER)
+      thread_shader(task);
+    else if (task.type == DeviceTask::FILM_CONVERT)
+      thread_film_convert(task);
+    else if (task.type == DeviceTask::DENOISE_BUFFER)
+      thread_denoise(task);
   }
-
-  class CPUDeviceTask : public DeviceTask {
-   public:
-    CPUDeviceTask(CPUDevice *device, DeviceTask &task) : DeviceTask(task)
-    {
-      run = function_bind(&CPUDevice::thread_run, device, this);
-    }
-  };
 
   bool denoising_non_local_means(device_ptr image_ptr,
                                  device_ptr guide_ptr,
@@ -839,7 +828,7 @@ class CPUDevice : public Device {
     return true;
   }
 
-  bool adaptive_sampling_filter(KernelGlobals *kg, RenderTile &tile)
+  bool adaptive_sampling_filter(KernelGlobals *kg, RenderTile &tile, int sample)
   {
     WorkTile wtile;
     wtile.x = tile.x;
@@ -850,11 +839,24 @@ class CPUDevice : public Device {
     wtile.stride = tile.stride;
     wtile.buffer = (float *)tile.buffer;
 
+    /* For CPU we do adaptive stopping per sample so we can stop earlier, but
+     * for combined CPU + GPU rendering we match the GPU and do it per tile
+     * after a given number of sample steps. */
+    if (!kernel_data.integrator.adaptive_stop_per_sample) {
+      for (int y = wtile.y; y < wtile.y + wtile.h; ++y) {
+        for (int x = wtile.x; x < wtile.x + wtile.w; ++x) {
+          const int index = wtile.offset + x + y * wtile.stride;
+          float *buffer = wtile.buffer + index * kernel_data.film.pass_stride;
+          kernel_do_adaptive_stopping(kg, buffer, sample);
+        }
+      }
+    }
+
     bool any = false;
-    for (int y = tile.y; y < tile.y + tile.h; ++y) {
+    for (int y = wtile.y; y < wtile.y + wtile.h; ++y) {
       any |= kernel_do_adaptive_filter_x(kg, y, &wtile);
     }
-    for (int x = tile.x; x < tile.x + tile.w; ++x) {
+    for (int x = wtile.x; x < wtile.x + wtile.w; ++x) {
       any |= kernel_do_adaptive_filter_y(kg, x, &wtile);
     }
     return (!any);
@@ -882,7 +884,7 @@ class CPUDevice : public Device {
     }
   }
 
-  void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg)
+  void render(DeviceTask &task, RenderTile &tile, KernelGlobals *kg)
   {
     const bool use_coverage = kernel_data.film.cryptomatte_passes & CRYPT_ACCURATE;
 
@@ -906,18 +908,27 @@ class CPUDevice : public Device {
           break;
       }
 
-      for (int y = tile.y; y < tile.y + tile.h; y++) {
-        for (int x = tile.x; x < tile.x + tile.w; x++) {
-          if (use_coverage) {
-            coverage.init_pixel(x, y);
+      if (tile.task == RenderTile::PATH_TRACE) {
+        for (int y = tile.y; y < tile.y + tile.h; y++) {
+          for (int x = tile.x; x < tile.x + tile.w; x++) {
+            if (use_coverage) {
+              coverage.init_pixel(x, y);
+            }
+            path_trace_kernel()(kg, render_buffer, sample, x, y, tile.offset, tile.stride);
           }
-          path_trace_kernel()(kg, render_buffer, sample, x, y, tile.offset, tile.stride);
+        }
+      }
+      else {
+        for (int y = tile.y; y < tile.y + tile.h; y++) {
+          for (int x = tile.x; x < tile.x + tile.w; x++) {
+            bake_kernel()(kg, render_buffer, sample, x, y, tile.offset, tile.stride);
+          }
         }
       }
       tile.sample = sample + 1;
 
       if (task.adaptive_sampling.use && task.adaptive_sampling.need_filter(sample)) {
-        const bool stop = adaptive_sampling_filter(kg, tile);
+        const bool stop = adaptive_sampling_filter(kg, tile, sample);
         if (stop) {
           const int num_progress_samples = end_sample - sample;
           tile.sample = end_sample;
@@ -937,7 +948,71 @@ class CPUDevice : public Device {
     }
   }
 
-  void denoise(DenoisingTask &denoising, RenderTile &tile)
+  void denoise_openimagedenoise(DeviceTask &task, RenderTile &rtile)
+  {
+#ifdef WITH_OPENIMAGEDENOISE
+    assert(openimagedenoise_supported());
+
+    /* Only one at a time, since OpenImageDenoise itself is multithreaded. */
+    static thread_mutex mutex;
+    thread_scoped_lock lock(mutex);
+
+    /* Create device and filter, cached for reuse. */
+    if (!oidn_device) {
+      oidn_device = oidn::newDevice();
+      oidn_device.commit();
+    }
+    if (!oidn_filter) {
+      oidn_filter = oidn_device.newFilter("RT");
+    }
+
+    /* Copy pixels from compute device to CPU (no-op for CPU device). */
+    rtile.buffers->buffer.copy_from_device();
+
+    /* Set images with appropriate stride for our interleaved pass storage. */
+    const struct {
+      const char *name;
+      int offset;
+    } passes[] = {{"color", task.pass_denoising_data + DENOISING_PASS_COLOR},
+                  {"normal", task.pass_denoising_data + DENOISING_PASS_NORMAL},
+                  {"albedo", task.pass_denoising_data + DENOISING_PASS_ALBEDO},
+                  {"output", 0},
+                  { NULL,
+                    0 }};
+
+    for (int i = 0; passes[i].name; i++) {
+      const int64_t offset = rtile.offset + rtile.x + rtile.y * rtile.stride;
+      const int64_t buffer_offset = (offset * task.pass_stride + passes[i].offset) * sizeof(float);
+      const int64_t pixel_stride = task.pass_stride * sizeof(float);
+      const int64_t row_stride = rtile.stride * pixel_stride;
+
+      oidn_filter.setImage(passes[i].name,
+                           (char *)rtile.buffer + buffer_offset,
+                           oidn::Format::Float3,
+                           rtile.w,
+                           rtile.h,
+                           0,
+                           pixel_stride,
+                           row_stride);
+    }
+
+    /* Execute filter. */
+    oidn_filter.set("hdr", true);
+    oidn_filter.set("srgb", false);
+    oidn_filter.commit();
+    oidn_filter.execute();
+
+    /* todo: it may be possible to avoid this copy, but we have to ensure that
+     * when other code copies data from the device it doesn't overwrite the
+     * denoiser buffers. */
+    rtile.buffers->buffer.copy_to_device();
+#else
+    (void)task;
+    (void)rtile;
+#endif
+  }
+
+  void denoise_nlm(DenoisingTask &denoising, RenderTile &tile)
   {
     ProfilingHelper profiling(denoising.profiler, PROFILING_DENOISING);
 
@@ -995,22 +1070,33 @@ class CPUDevice : public Device {
       }
     }
 
-    RenderTile tile;
-    DenoisingTask denoising(this, task);
-    denoising.profiler = &kg->profiler;
+    DenoisingTask *denoising = NULL;
 
+    RenderTile tile;
     while (task.acquire_tile(this, tile, task.tile_types)) {
       if (tile.task == RenderTile::PATH_TRACE) {
         if (use_split_kernel) {
           device_only_memory<uchar> void_buffer(this, "void_buffer");
-          split_kernel->path_trace(&task, tile, kgbuffer, void_buffer);
+          split_kernel->path_trace(task, tile, kgbuffer, void_buffer);
         }
         else {
-          path_trace(task, tile, kg);
+          render(task, tile, kg);
         }
       }
+      else if (tile.task == RenderTile::BAKE) {
+        render(task, tile, kg);
+      }
       else if (tile.task == RenderTile::DENOISE) {
-        denoise(denoising, tile);
+        if (task.denoising.type == DENOISER_OPENIMAGEDENOISE) {
+          denoise_openimagedenoise(task, tile);
+        }
+        else if (task.denoising.type == DENOISER_NLM) {
+          if (denoising == NULL) {
+            denoising = new DenoisingTask(this, task);
+            denoising->profiler = &kg->profiler;
+          }
+          denoise_nlm(*denoising, tile);
+        }
         task.update_progress(&tile, tile.w * tile.h);
       }
 
@@ -1028,6 +1114,7 @@ class CPUDevice : public Device {
     kg->~KernelGlobals();
     kgbuffer.free();
     delete split_kernel;
+    delete denoising;
   }
 
   void thread_denoise(DeviceTask &task)
@@ -1045,16 +1132,22 @@ class CPUDevice : public Device {
     tile.stride = task.stride;
     tile.buffers = task.buffers;
 
-    DenoisingTask denoising(this, task);
+    if (task.denoising.type == DENOISER_OPENIMAGEDENOISE) {
+      denoise_openimagedenoise(task, tile);
+    }
+    else {
+      DenoisingTask denoising(this, task);
 
-    ProfilingState denoising_profiler_state;
-    profiler.add_state(&denoising_profiler_state);
-    denoising.profiler = &denoising_profiler_state;
+      ProfilingState denoising_profiler_state;
+      profiler.add_state(&denoising_profiler_state);
+      denoising.profiler = &denoising_profiler_state;
 
-    denoise(denoising, tile);
+      denoise_nlm(denoising, tile);
+
+      profiler.remove_state(&denoising_profiler_state);
+    }
+
     task.update_progress(&tile, tile.w * tile.h);
-
-    profiler.remove_state(&denoising_profiler_state);
   }
 
   void thread_film_convert(DeviceTask &task)
@@ -1128,13 +1221,24 @@ class CPUDevice : public Device {
     /* split task into smaller ones */
     list<DeviceTask> tasks;
 
-    if (task.type == DeviceTask::SHADER)
+    if (task.type == DeviceTask::DENOISE_BUFFER &&
+        task.denoising.type == DENOISER_OPENIMAGEDENOISE) {
+      /* Denoise entire buffer at once with OIDN, it has own threading. */
+      tasks.push_back(task);
+    }
+    else if (task.type == DeviceTask::SHADER) {
       task.split(tasks, info.cpu_threads, 256);
-    else
+    }
+    else {
       task.split(tasks, info.cpu_threads);
+    }
 
-    foreach (DeviceTask &task, tasks)
-      task_pool.push(new CPUDeviceTask(this, task));
+    foreach (DeviceTask &task, tasks) {
+      task_pool.push([=] {
+        DeviceTask task_copy = task;
+        thread_run(task_copy);
+      });
+    }
   }
 
   void task_wait()
@@ -1299,7 +1403,7 @@ int2 CPUSplitKernel::split_kernel_local_size()
 
 int2 CPUSplitKernel::split_kernel_global_size(device_memory & /*kg*/,
                                               device_memory & /*data*/,
-                                              DeviceTask * /*task*/)
+                                              DeviceTask & /*task*/)
 {
   return make_int2(1, 1);
 }
@@ -1327,9 +1431,14 @@ void device_cpu_info(vector<DeviceInfo> &devices)
   info.id = "CPU";
   info.num = 0;
   info.has_volume_decoupled = true;
+  info.has_adaptive_stop_per_sample = true;
   info.has_osl = true;
   info.has_half_images = true;
   info.has_profiling = true;
+  info.denoisers = DENOISER_NLM;
+  if (openimagedenoise_supported()) {
+    info.denoisers |= DENOISER_OPENIMAGEDENOISE;
+  }
 
   devices.insert(devices.begin(), info);
 }

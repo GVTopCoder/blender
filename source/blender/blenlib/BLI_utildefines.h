@@ -24,13 +24,9 @@
  * \ingroup bli
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* avoid many includes for now */
-#include "BLI_sys_types.h"
 #include "BLI_compiler_compat.h"
+#include "BLI_sys_types.h"
 #include "BLI_utildefines_variadic.h"
 
 /* We could remove in future. */
@@ -38,6 +34,10 @@ extern "C" {
 
 /* include after _VA_NARGS macro */
 #include "BLI_compiler_typecheck.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* -------------------------------------------------------------------- */
 /** \name Min/Max Macros

@@ -49,6 +49,7 @@ struct GHOST_XrCustomFuncs {
 enum GHOST_TXrOpenXRRuntimeID {
   OPENXR_RUNTIME_MONADO,
   OPENXR_RUNTIME_OCULUS,
+  OPENXR_RUNTIME_STEAMVR,
   OPENXR_RUNTIME_WMR, /* Windows Mixed Reality */
 
   OPENXR_RUNTIME_UNKNOWN
@@ -78,6 +79,7 @@ class GHOST_XrContext : public GHOST_IXrContext {
   void setGraphicsContextBindFuncs(GHOST_XrGraphicsContextBindFn bind_fn,
                                    GHOST_XrGraphicsContextUnbindFn unbind_fn) override;
   void setDrawViewFunc(GHOST_XrDrawViewFn draw_view_fn) override;
+  bool needsUpsideDownDrawing() const override;
 
   void handleSessionStateChange(const XrEventDataSessionStateChanged *lifecycle);
 

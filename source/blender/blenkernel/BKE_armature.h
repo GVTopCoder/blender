@@ -22,20 +22,24 @@
 /** \file
  * \ingroup bke
  */
+#include "BLI_listbase.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+struct BMEditMesh;
 struct Bone;
 struct Depsgraph;
 struct ListBase;
 struct Main;
+struct Mesh;
 struct Object;
 struct PoseTree;
 struct Scene;
 struct bArmature;
 struct bConstraint;
+struct bGPDstroke;
 struct bPose;
 struct bPoseChannel;
 
@@ -61,7 +65,7 @@ typedef struct PoseTree {
   int stretch;                 /* disable stretching */
 } PoseTree;
 
-/*  Core armature functionality */
+/* Core armature functionality. */
 
 struct bArmature *BKE_armature_add(struct Main *bmain, const char *name);
 struct bArmature *BKE_armature_from_object(struct Object *ob);
@@ -89,7 +93,7 @@ void BKE_armature_bone_hash_free(struct bArmature *arm);
 
 bool BKE_armature_bone_flag_test_recursive(const struct Bone *bone, int flag);
 
-void BKE_armature_refresh_layer_used(struct bArmature *arm);
+void BKE_armature_refresh_layer_used(struct Depsgraph *depsgraph, struct bArmature *arm);
 
 float distfactor_to_bone(
     const float vec[3], const float b1[3], const float b2[3], float r1, float r2, float rdist);
@@ -340,6 +344,45 @@ void BKE_pose_eval_proxy_cleanup(struct Depsgraph *depsgraph, struct Object *obj
 void BKE_pose_eval_proxy_copy_bone(struct Depsgraph *depsgraph,
                                    struct Object *object,
                                    int pchan_index);
+
+/* -------------------------------------------------------------------- */
+/** \name Deform 3D Coordinates by Armature (armature_deform.c)
+ * \{ */
+
+/* Note that we could have a 'BKE_armature_deform_coords' that doesn't take object data
+ * currently there are no callers for this though. */
+
+void BKE_armature_deform_coords_with_gpencil_stroke(const struct Object *ob_arm,
+                                                    const struct Object *ob_target,
+                                                    float (*vert_coords)[3],
+                                                    float (*vert_deform_mats)[3][3],
+                                                    int vert_coords_len,
+                                                    int deformflag,
+                                                    float (*vert_coords_prev)[3],
+                                                    const char *defgrp_name,
+                                                    struct bGPDstroke *gps_target);
+
+void BKE_armature_deform_coords_with_mesh(const struct Object *ob_arm,
+                                          const struct Object *ob_target,
+                                          float (*vert_coords)[3],
+                                          float (*vert_deform_mats)[3][3],
+                                          int vert_coords_len,
+                                          int deformflag,
+                                          float (*vert_coords_prev)[3],
+                                          const char *defgrp_name,
+                                          const struct Mesh *me_target);
+
+void BKE_armature_deform_coords_with_editmesh(const struct Object *ob_arm,
+                                              const struct Object *ob_target,
+                                              float (*vert_coords)[3],
+                                              float (*vert_deform_mats)[3][3],
+                                              int vert_coords_len,
+                                              int deformflag,
+                                              float (*vert_coords_prev)[3],
+                                              const char *defgrp_name,
+                                              struct BMEditMesh *em_target);
+
+/** \} */
 
 #ifdef __cplusplus
 }

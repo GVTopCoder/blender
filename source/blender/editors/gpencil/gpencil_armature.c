@@ -23,17 +23,17 @@
  * Operators for dealing with armatures and GP data-blocks.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stddef.h>
 #include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
 #include "BLI_blenlib.h"
-#include "BLI_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
 
@@ -42,13 +42,13 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 
-#include "BKE_main.h"
 #include "BKE_action.h"
 #include "BKE_armature.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
+#include "BKE_main.h"
 #include "BKE_object_deform.h"
 #include "BKE_report.h"
 
@@ -60,8 +60,8 @@
 #include "RNA_enum_types.h"
 
 #include "ED_gpencil.h"
-#include "ED_object.h"
 #include "ED_mesh.h"
+#include "ED_object.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -481,8 +481,7 @@ static void gpencil_object_vgroup_calc_from_armature(const bContext *C,
   DEG_relations_tag_update(CTX_data_main(C));
 }
 
-bool ED_gpencil_add_armature_weights(
-    const bContext *C, ReportList *reports, Object *ob, Object *ob_arm, int mode)
+bool ED_gpencil_add_armature(const bContext *C, ReportList *reports, Object *ob, Object *ob_arm)
 {
   Main *bmain = CTX_data_main(C);
   Scene *scene = CTX_data_scene(C);
@@ -492,7 +491,7 @@ bool ED_gpencil_add_armature_weights(
   }
 
   /* if no armature modifier, add a new one */
-  GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob, eGpencilModifierType_Armature);
+  GpencilModifierData *md = BKE_gpencil_modifiers_findby_type(ob, eGpencilModifierType_Armature);
   if (md == NULL) {
     md = ED_object_gpencil_modifier_add(
         reports, bmain, scene, ob, "Armature", eGpencilModifierType_Armature);
@@ -516,11 +515,24 @@ bool ED_gpencil_add_armature_weights(
       return false;
     }
   }
+  return true;
+}
+
+bool ED_gpencil_add_armature_weights(
+    const bContext *C, ReportList *reports, Object *ob, Object *ob_arm, int mode)
+{
+  if (ob == NULL) {
+    return false;
+  }
+
+  bool success = ED_gpencil_add_armature(C, reports, ob, ob_arm);
 
   /* add weights */
-  gpencil_object_vgroup_calc_from_armature(C, ob, ob_arm, mode, DEFAULT_RATIO, DEFAULT_DECAY);
+  if (success) {
+    gpencil_object_vgroup_calc_from_armature(C, ob, ob_arm, mode, DEFAULT_RATIO, DEFAULT_DECAY);
+  }
 
-  return true;
+  return success;
 }
 /* ***************** Generate armature weights ************************** */
 static bool gpencil_generate_weights_poll(bContext *C)
@@ -543,7 +555,7 @@ static bool gpencil_generate_weights_poll(bContext *C)
   }
 
   /* need some armature in the view layer */
-  for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+  LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
     if (base->object->type == OB_ARMATURE) {
       return true;
     }
@@ -578,8 +590,8 @@ static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
   }
   else {
     /* get armature from modifier */
-    GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob_eval,
-                                                               eGpencilModifierType_Armature);
+    GpencilModifierData *md = BKE_gpencil_modifiers_findby_type(ob_eval,
+                                                                eGpencilModifierType_Armature);
     if (md == NULL) {
       BKE_report(op->reports, RPT_ERROR, "The grease pencil object need an Armature modifier");
       return OPERATOR_CANCELLED;
@@ -630,7 +642,7 @@ static const EnumPropertyItem *gpencil_armatures_enum_itemf(bContext *C,
   RNA_enum_item_add(&item, &totitem, &item_tmp);
   i++;
 
-  for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+  LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
     Object *ob = base->object;
     if (ob->type == OB_ARMATURE) {
       item_tmp.identifier = item_tmp.name = ob->id.name + 2;

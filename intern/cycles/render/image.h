@@ -17,7 +17,6 @@
 #ifndef __IMAGE_H__
 #define __IMAGE_H__
 
-#include "device/device.h"
 #include "device/device_memory.h"
 
 #include "render/colorspace.h"
@@ -31,6 +30,7 @@
 CCL_NAMESPACE_BEGIN
 
 class Device;
+class DeviceInfo;
 class ImageHandle;
 class ImageKey;
 class ImageMetaData;
@@ -206,6 +206,7 @@ class ImageManager {
   bool has_half_images;
 
   thread_mutex device_mutex;
+  thread_mutex images_mutex;
   int animation_frame;
 
   vector<Image *> images;

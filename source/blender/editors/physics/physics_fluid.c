@@ -18,7 +18,7 @@
  */
 
 /** \file
- *  \ingroup edphys
+ * \ingroup edphys
  */
 
 #include <math.h>
@@ -33,37 +33,38 @@
 #include "DNA_object_types.h"
 
 #include "BLI_blenlib.h"
-#include "BLI_path_util.h"
 #include "BLI_math.h"
+#include "BLI_path_util.h"
 #include "BLI_utildefines.h"
 
 #include "BLT_translation.h"
 
 #include "BKE_context.h"
 #include "BKE_customdata.h"
+#include "BKE_fluid.h"
+#include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
-#include "BKE_fluid.h"
-#include "BKE_global.h"
 
 #include "DEG_depsgraph.h"
 
+#include "ED_object.h"
 #include "ED_screen.h"
 #include "PIL_time.h"
 
-#include "WM_types.h"
 #include "WM_api.h"
+#include "WM_types.h"
 
-#include "physics_intern.h"  // own include
 #include "manta_fluid_API.h"
+#include "physics_intern.h"  // own include
 
-#include "DNA_scene_types.h"
 #include "DNA_fluid_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_scene_types.h"
 
 #define FLUID_JOB_BAKE_ALL "FLUID_OT_bake_all"
 #define FLUID_JOB_BAKE_DATA "FLUID_OT_bake_data"
@@ -154,9 +155,9 @@ static bool fluid_initjob(
 {
   FluidModifierData *mmd = NULL;
   FluidDomainSettings *mds;
-  Object *ob = CTX_data_active_object(C);
+  Object *ob = ED_object_active_context(C);
 
-  mmd = (FluidModifierData *)modifiers_findByType(ob, eModifierType_Fluid);
+  mmd = (FluidModifierData *)BKE_modifiers_findby_type(ob, eModifierType_Fluid);
   if (!mmd) {
     BLI_strncpy(error_msg, N_("Bake failed: no Fluid modifier found"), error_size);
     return false;
@@ -170,7 +171,7 @@ static bool fluid_initjob(
   job->bmain = CTX_data_main(C);
   job->scene = CTX_data_scene(C);
   job->depsgraph = CTX_data_depsgraph_pointer(C);
-  job->ob = CTX_data_active_object(C);
+  job->ob = ob;
   job->mmd = mmd;
   job->type = op->type->idname;
   job->name = op->type->name;
@@ -185,13 +186,13 @@ static bool fluid_validatepaths(FluidJob *job, ReportList *reports)
   temp_dir[0] = '\0';
   bool is_relative = false;
 
-  const char *relbase = modifier_path_relbase(job->bmain, job->ob);
+  const char *relbase = BKE_modifier_path_relbase(job->bmain, job->ob);
 
   /* We do not accept empty paths, they can end in random places silently, see T51176. */
   if (mds->cache_directory[0] == '\0') {
     char cache_name[64];
     BKE_fluid_cache_new_name_for_current_session(sizeof(cache_name), cache_name);
-    modifier_path_init(mds->cache_directory, sizeof(mds->cache_directory), cache_name);
+    BKE_modifier_path_init(mds->cache_directory, sizeof(mds->cache_directory), cache_name);
     BKE_reportf(reports,
                 RPT_WARNING,
                 "Fluid: Empty cache path, reset to default '%s'",
@@ -209,7 +210,7 @@ static bool fluid_validatepaths(FluidJob *job, ReportList *reports)
   if (!dir_exists) {
     char cache_name[64];
     BKE_fluid_cache_new_name_for_current_session(sizeof(cache_name), cache_name);
-    modifier_path_init(mds->cache_directory, sizeof(mds->cache_directory), cache_name);
+    BKE_modifier_path_init(mds->cache_directory, sizeof(mds->cache_directory), cache_name);
 
     BKE_reportf(reports,
                 RPT_ERROR,
@@ -269,31 +270,31 @@ static void fluid_bake_sequence(FluidJob *job)
     *(job->do_update) = true;
   }
 
-  /* Get current pause frame (pointer) - depending on bake type */
+  /* Get current pause frame (pointer) - depending on bake type. */
   pause_frame = job->pause_frame;
 
-  /* Set frame to start point (depending on current pause frame value) */
+  /* Set frame to start point (depending on current pause frame value). */
   is_first_frame = ((*pause_frame) == 0);
   frame = is_first_frame ? mds->cache_frame_start : (*pause_frame);
 
-  /* Save orig frame and update scene frame */
+  /* Save orig frame and update scene frame. */
   orig_frame = CFRA;
   CFRA = frame;
 
-  /* Loop through selected frames */
+  /* Loop through selected frames. */
   for (; frame <= mds->cache_frame_end; frame++) {
     const float progress = (frame - mds->cache_frame_start) / (float)frames;
 
-    /* Keep track of pause frame - needed to init future loop */
+    /* Keep track of pause frame - needed to init future loop. */
     (*pause_frame) = frame;
 
-    /* If user requested stop, quit baking */
+    /* If user requested stop, quit baking. */
     if (G.is_break) {
       job->success = 0;
       return;
     }
 
-    /* Update progress bar */
+    /* Update progress bar. */
     if (job->do_update) {
       *(job->do_update) = true;
     }
@@ -303,17 +304,17 @@ static void fluid_bake_sequence(FluidJob *job)
 
     CFRA = frame;
 
-    /* Update animation system */
+    /* Update animation system. */
     ED_update_for_newframe(job->bmain, job->depsgraph);
 
-    /* If user requested stop, quit baking */
+    /* If user requested stop, quit baking. */
     if (G.is_break) {
       job->success = 0;
       return;
     }
   }
 
-  /* Restore frame position that we were on before bake */
+  /* Restore frame position that we were on before bake. */
   CFRA = orig_frame;
 }
 
@@ -354,17 +355,17 @@ static void fluid_bake_endjob(void *customdata)
   WM_set_locked_interface(G_MAIN->wm.first, false);
 
   /* Bake was successful:
-   *  Report for ended bake and how long it took */
+   * Report for ended bake and how long it took. */
   if (job->success) {
-    /* Show bake info */
+    /* Show bake info. */
     WM_reportf(
         RPT_INFO, "Fluid: %s complete! (%.2f)", job->name, PIL_check_seconds_timer() - job->start);
   }
   else {
-    if (mds->error != NULL && mds->error[0] != '\0') {
+    if (mds->error[0] != '\0') {
       WM_reportf(RPT_ERROR, "Fluid: %s failed: %s", job->name, mds->error);
     }
-    else { /* User canceled the bake */
+    else { /* User canceled the bake. */
       WM_reportf(RPT_WARNING, "Fluid: %s canceled!", job->name);
     }
   }
@@ -376,7 +377,7 @@ static void fluid_bake_startjob(void *customdata, short *stop, short *do_update,
   FluidDomainSettings *mds = job->mmd->domain;
 
   char temp_dir[FILE_MAX];
-  const char *relbase = modifier_path_relbase_from_global(job->ob);
+  const char *relbase = BKE_modifier_path_relbase_from_global(job->ob);
 
   job->stop = stop;
   job->do_update = do_update;
@@ -473,7 +474,7 @@ static void fluid_free_endjob(void *customdata)
         RPT_INFO, "Fluid: %s complete! (%.2f)", job->name, PIL_check_seconds_timer() - job->start);
   }
   else {
-    if (mds->error != NULL && mds->error[0] != '\0') {
+    if (mds->error[0] != '\0') {
       WM_reportf(RPT_ERROR, "Fluid: %s failed: %s", job->name, mds->error);
     }
     else { /* User canceled the free job */
@@ -616,13 +617,13 @@ static int fluid_free_exec(struct bContext *C, struct wmOperator *op)
 {
   FluidModifierData *mmd = NULL;
   FluidDomainSettings *mds;
-  Object *ob = CTX_data_active_object(C);
+  Object *ob = ED_object_active_context(C);
   Scene *scene = CTX_data_scene(C);
 
   /*
    * Get modifier data
    */
-  mmd = (FluidModifierData *)modifiers_findByType(ob, eModifierType_Fluid);
+  mmd = (FluidModifierData *)BKE_modifiers_findby_type(ob, eModifierType_Fluid);
   if (!mmd) {
     BKE_report(op->reports, RPT_ERROR, "Bake free failed: no Fluid modifier found");
     return OPERATOR_CANCELLED;
@@ -679,12 +680,12 @@ static int fluid_pause_exec(struct bContext *C, struct wmOperator *op)
 {
   FluidModifierData *mmd = NULL;
   FluidDomainSettings *mds;
-  Object *ob = CTX_data_active_object(C);
+  Object *ob = ED_object_active_context(C);
 
   /*
    * Get modifier data
    */
-  mmd = (FluidModifierData *)modifiers_findByType(ob, eModifierType_Fluid);
+  mmd = (FluidModifierData *)BKE_modifiers_findby_type(ob, eModifierType_Fluid);
   if (!mmd) {
     BKE_report(op->reports, RPT_ERROR, "Bake free failed: no Fluid modifier found");
     return OPERATOR_CANCELLED;

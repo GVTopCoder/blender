@@ -24,28 +24,28 @@
 
 #include <stddef.h>
 
+#include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <math.h>
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_ghash.h"
 #include "BLI_linklist.h"
 #include "BLI_listbase.h"
 #include "BLI_string.h"
+#include "BLI_utildefines.h"
 
 #include "DNA_genfile.h"
 #include "DNA_sdna_types.h"
 
+#include "BKE_idtype.h"
 #include "BKE_main.h"
-#include "BKE_idcode.h"
 
+#include "BLO_blend_defs.h"
 #include "BLO_readfile.h"
 #include "BLO_undofile.h"
-#include "BLO_blend_defs.h"
 
 #include "readfile.h"
 
@@ -268,9 +268,9 @@ LinkNode *BLO_blendhandle_get_linkable_groups(BlendHandle *bh)
     if (bhead->code == ENDB) {
       break;
     }
-    else if (BKE_idcode_is_valid(bhead->code)) {
-      if (BKE_idcode_is_linkable(bhead->code)) {
-        const char *str = BKE_idcode_to_name(bhead->code);
+    else if (BKE_idtype_idcode_is_valid(bhead->code)) {
+      if (BKE_idtype_idcode_is_linkable(bhead->code)) {
+        const char *str = BKE_idtype_idcode_to_name(bhead->code);
 
         if (BLI_gset_add(gathered, (void *)str)) {
           BLI_linklist_prepend(&names, strdup(str));
@@ -427,41 +427,6 @@ BlendFileData *BLO_read_from_memfile(Main *oldmain,
     /* Still in-use libraries have already been moved from oldmain to new mainlist,
      * but oldmain itself shall *never* be 'transferred' to new mainlist! */
     BLI_assert(old_mainlist.first == oldmain);
-
-    if (bfd && old_mainlist.first != old_mainlist.last) {
-      /* Even though directly used libs have been already moved to new main,
-       * indirect ones have not.
-       * This is a bit annoying, but we have no choice but to keep them all for now -
-       * means some now unused data may remain in memory, but think we'll have to live with it. */
-      Main *libmain, *libmain_next;
-      Main *newmain = bfd->main;
-      ListBase new_mainlist = {newmain, newmain};
-
-      for (libmain = oldmain->next; libmain; libmain = libmain_next) {
-        libmain_next = libmain->next;
-        /* Note that LIB_INDIRECT does not work with libraries themselves, so we use non-NULL
-         * parent to detect indirect-linked ones. */
-        if (libmain->curlib && (libmain->curlib->parent != NULL)) {
-          BLI_remlink(&old_mainlist, libmain);
-          BLI_addtail(&new_mainlist, libmain);
-        }
-        else {
-#ifdef PRINT_DEBUG
-          printf("Dropped Main for lib: %s\n", libmain->curlib->id.name);
-#endif
-        }
-      }
-      /* In any case, we need to move all lib data-blocks themselves - those are
-       * 'first level data', getting rid of them would imply updating spaces & co
-       * to prevent invalid pointers access. */
-      BLI_movelisttolist(&newmain->libraries, &oldmain->libraries);
-
-      blo_join_main(&new_mainlist);
-    }
-
-#if 0
-    printf("Remaining mains/libs in oldmain: %d\n", BLI_listbase_count(&fd->old_mainlist) - 1);
-#endif
 
     /* That way, libs (aka mains) we did not reuse in new undone/redone state
      * will be cleared together with oldmain... */

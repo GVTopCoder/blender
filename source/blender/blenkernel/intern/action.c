@@ -21,37 +21,38 @@
  * \ingroup bke
  */
 
-#include <string.h>
 #include <math.h>
-#include <stdlib.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
-#include "DNA_scene_types.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "BLI_blenlib.h"
+#include "BLI_ghash.h"
 #include "BLI_math.h"
 #include "BLI_string_utils.h"
 #include "BLI_utildefines.h"
-#include "BLI_ghash.h"
 
 #include "BLT_translation.h"
 
 #include "BKE_action.h"
-#include "BKE_armature.h"
-#include "BKE_anim.h"
+#include "BKE_anim_visualization.h"
 #include "BKE_animsys.h"
+#include "BKE_armature.h"
 #include "BKE_constraint.h"
 #include "BKE_deform.h"
 #include "BKE_fcurve.h"
 #include "BKE_idprop.h"
 #include "BKE_idtype.h"
 #include "BKE_lib_id.h"
+#include "BKE_lib_query.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
 
@@ -115,7 +116,7 @@ static void action_copy_data(Main *UNUSED(bmain),
 
     /* XXX TODO pass subdata flag?
      * But surprisingly does not seem to be doing any ID refcounting... */
-    fcurve_dst = copy_fcurve(fcurve_src);
+    fcurve_dst = BKE_fcurve_copy(fcurve_src);
 
     BLI_addtail(&action_dst->curves, fcurve_dst);
 
@@ -145,13 +146,26 @@ static void action_free_data(struct ID *id)
   /* No animdata here. */
 
   /* Free F-Curves. */
-  free_fcurves(&action->curves);
+  BKE_fcurves_free(&action->curves);
 
   /* Free groups. */
   BLI_freelistN(&action->groups);
 
   /* Free pose-references (aka local markers). */
   BLI_freelistN(&action->markers);
+}
+
+static void action_foreach_id(ID *id, LibraryForeachIDData *data)
+{
+  bAction *act = (bAction *)id;
+
+  LISTBASE_FOREACH (FCurve *, fcu, &act->curves) {
+    BKE_fcurve_foreach_id(fcu, data);
+  }
+
+  LISTBASE_FOREACH (TimeMarker *, marker, &act->markers) {
+    BKE_LIB_FOREACHID_PROCESS(data, marker->camera, IDWALK_CB_NOP);
+  }
 }
 
 IDTypeInfo IDType_ID_AC = {
@@ -168,6 +182,7 @@ IDTypeInfo IDType_ID_AC = {
     .copy_data = action_copy_data,
     .free_data = action_free_data,
     .make_local = NULL,
+    .foreach_id = action_foreach_id,
 };
 
 /* ***************** Library data level operations on action ************** */
@@ -924,7 +939,8 @@ void BKE_pose_channel_free_ex(bPoseChannel *pchan, bool do_id_user)
   BKE_constraints_free_ex(&pchan->constraints, do_id_user);
 
   if (pchan->prop) {
-    IDP_FreeProperty(pchan->prop);
+    IDP_FreeProperty_ex(pchan->prop, do_id_user);
+    pchan->prop = NULL;
   }
 
   /* Cached data, for new draw manager rendering code. */
@@ -1294,7 +1310,7 @@ void calc_action_range(const bAction *act, float *start, float *end, short incl_
          *   single-keyframe curves will increase the overall length by
          *   a phantom frame (T50354)
          */
-        calc_fcurve_range(fcu, &nmin, &nmax, false, false);
+        BKE_fcurve_calc_range(fcu, &nmin, &nmax, false, false);
 
         /* compare to the running tally */
         min = min_ff(min, nmin);
@@ -1664,6 +1680,6 @@ void what_does_obaction(
     adt.action = act;
 
     /* execute effects of Action on to workob (or it's PoseChannels) */
-    BKE_animsys_evaluate_animdata(NULL, &workob->id, &adt, cframe, ADT_RECALC_ANIM, false);
+    BKE_animsys_evaluate_animdata(&workob->id, &adt, cframe, ADT_RECALC_ANIM, false);
   }
 }

@@ -21,11 +21,15 @@
  * \ingroup bke
  * \brief General operations, lookup, etc. for blender objects.
  */
+
+#include "BLI_compiler_attrs.h"
+#include "BLI_sys_types.h"
+
+#include "DNA_object_enums.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "BLI_compiler_attrs.h"
 
 struct Base;
 struct BoundBox;
@@ -45,8 +49,6 @@ struct Scene;
 struct ShaderFxData;
 struct View3D;
 struct ViewLayer;
-
-#include "DNA_object_enums.h"
 
 void BKE_object_workob_clear(struct Object *workob);
 void BKE_object_workob_calc_parent(struct Depsgraph *depsgraph,
@@ -136,8 +138,9 @@ bool BKE_object_is_libdata(const struct Object *ob);
 bool BKE_object_obdata_is_libdata(const struct Object *ob);
 
 struct Object *BKE_object_duplicate(struct Main *bmain,
-                                    const struct Object *ob,
-                                    const int dupflag);
+                                    struct Object *ob,
+                                    const uint dupflag,
+                                    const uint duplicate_options);
 
 void BKE_object_obdata_size_init(struct Object *ob, const float scale);
 
@@ -277,7 +280,7 @@ void BKE_object_eval_uber_data(struct Depsgraph *depsgraph,
 void BKE_object_eval_assign_data(struct Object *object, struct ID *data, bool is_owned);
 
 void BKE_object_eval_boundbox(struct Depsgraph *depsgraph, struct Object *object);
-void BKE_object_synchronize_to_original(struct Depsgraph *depsgraph, struct Object *object);
+void BKE_object_sync_to_original(struct Depsgraph *depsgraph, struct Object *object);
 
 void BKE_object_eval_ptcache_reset(struct Depsgraph *depsgraph,
                                    struct Scene *scene,

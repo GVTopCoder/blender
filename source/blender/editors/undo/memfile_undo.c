@@ -20,19 +20,22 @@
  * Wrapper between 'ED_undo.h' and 'BKE_undo_system.h' API's.
  */
 
-#include "BLI_utildefines.h"
 #include "BLI_sys_types.h"
+#include "BLI_utildefines.h"
 
 #include "BLI_ghash.h"
 
+#include "DNA_node_types.h"
 #include "DNA_object_enums.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "BKE_blender_undo.h"
 #include "BKE_context.h"
 #include "BKE_lib_id.h"
 #include "BKE_lib_query.h"
 #include "BKE_main.h"
+#include "BKE_node.h"
 #include "BKE_scene.h"
 #include "BKE_undo_system.h"
 
@@ -106,7 +109,6 @@ static int memfile_undosys_step_id_reused_cb(LibraryIDLinkCallbackData *cb_data)
   ID *id_self = cb_data->id_self;
   ID **id_pointer = cb_data->id_pointer;
   BLI_assert((id_self->tag & LIB_TAG_UNDO_OLD_ID_REUSED) != 0);
-  Main *bmain = cb_data->user_data;
 
   ID *id = *id_pointer;
   if (id != NULL && id->lib == NULL && (id->tag & LIB_TAG_UNDO_OLD_ID_REUSED) == 0) {
@@ -129,9 +131,6 @@ static int memfile_undosys_step_id_reused_cb(LibraryIDLinkCallbackData *cb_data)
       }
     }
 
-    /* In case an old, re-used ID is using a newly read data-block (i.e. one of its ID pointers got
-     * updated), we have to tell the depsgraph about it. */
-    DEG_id_tag_update_ex(bmain, id_self, ID_RECALC_COPY_ON_WRITE);
     return do_stop_iter ? IDWALK_RET_STOP_ITER : IDWALK_RET_NOP;
   }
 
@@ -148,7 +147,7 @@ static void memfile_undosys_step_decode(struct bContext *C,
 
   bool use_old_bmain_data = true;
 
-  if (!U.experimental.use_undo_speedup) {
+  if (USER_EXPERIMENTAL_TEST(&U, use_undo_legacy)) {
     use_old_bmain_data = false;
   }
   else if (undo_direction > 0) {
@@ -156,15 +155,15 @@ static void memfile_undosys_step_decode(struct bContext *C,
      * The only time we should have to force a complete redo is when current step is tagged as a
      * redo barrier.
      * If previous step was not a memfile one should not matter here, current data in old bmain
-     * should still always be valid for unchanged datat-blocks. */
+     * should still always be valid for unchanged data-blocks. */
     if (us_p->use_old_bmain_data == false) {
       use_old_bmain_data = false;
     }
   }
   else {
     /* Undo case.
-     * Here we do not care whether current step is an undo barrier, since we are comming from 'the
-     * future' we can still re-use old data. However, if *next* undo step
+     * Here we do not care whether current step is an undo barrier, since we are coming from
+     * 'the future' we can still re-use old data. However, if *next* undo step
      * (i.e. the one immediately in the future, the one we are coming from)
      * is a barrier, then we have to force a complete undo.
      * Note that non-memfile undo steps **should** not be an issue anymore, since we handle
@@ -217,12 +216,37 @@ static void memfile_undosys_step_decode(struct bContext *C,
     FOREACH_MAIN_ID_BEGIN (bmain, id) {
       if (id->tag & LIB_TAG_UNDO_OLD_ID_REUSED) {
         BKE_library_foreach_ID_link(
-            bmain, id, memfile_undosys_step_id_reused_cb, bmain, IDWALK_READONLY);
+            bmain, id, memfile_undosys_step_id_reused_cb, NULL, IDWALK_READONLY);
+      }
+
+      /* Tag depsgraph to update data-block for changes that happened between the
+       * current and the target state, see direct_link_id_restore_recalc(). */
+      if (id->recalc) {
+        DEG_id_tag_update_ex(bmain, id, id->recalc);
       }
     }
     FOREACH_MAIN_ID_END;
 
-    BKE_main_id_tag_all(bmain, LIB_TAG_UNDO_OLD_ID_REUSED, false);
+    FOREACH_MAIN_ID_BEGIN (bmain, id) {
+      /* Clear temporary tag. */
+      id->tag &= ~LIB_TAG_UNDO_OLD_ID_REUSED;
+
+      /* We only start accumulating from this point, any tags set up to here
+       * are already part of the current undo state. This is done in a second
+       * loop because DEG_id_tag_update may set tags on other datablocks. */
+      id->recalc_after_undo_push = 0;
+      bNodeTree *nodetree = ntreeFromID(id);
+      if (nodetree != NULL) {
+        nodetree->id.recalc_after_undo_push = 0;
+      }
+      if (GS(id->name) == ID_SCE) {
+        Scene *scene = (Scene *)id;
+        if (scene->master_collection != NULL) {
+          scene->master_collection->id.recalc_after_undo_push = 0;
+        }
+      }
+    }
+    FOREACH_MAIN_ID_END;
   }
 
   WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, CTX_data_scene(C));

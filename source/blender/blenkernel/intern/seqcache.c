@@ -20,34 +20,34 @@
  * \ingroup bke
  */
 
-#include <stddef.h>
 #include <memory.h>
+#include <stddef.h>
 #include <time.h>
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_sequence_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_sequence_types.h"
 #include "DNA_space_types.h" /* for FILE_MAX. */
 
+#include "IMB_colormanagement.h"
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
-#include "IMB_colormanagement.h"
 
-#include "BLI_mempool.h"
-#include "BLI_threads.h"
-#include "BLI_listbase.h"
-#include "BLI_ghash.h"
 #include "BLI_blenlib.h"
 #include "BLI_endian_switch.h"
 #include "BLI_fileops.h"
 #include "BLI_fileops_types.h"
+#include "BLI_ghash.h"
+#include "BLI_listbase.h"
+#include "BLI_mempool.h"
 #include "BLI_path_util.h"
+#include "BLI_threads.h"
 
 #include "BKE_global.h"
-#include "BKE_sequencer.h"
-#include "BKE_scene.h"
 #include "BKE_main.h"
+#include "BKE_scene.h"
+#include "BKE_sequencer.h"
 
 /**
  * Sequencer Cache Design Notes
@@ -82,7 +82,7 @@
  * Multiple(DCACHE_IMAGES_PER_FILE) images share the same file.
  * Each of these files contains header DiskCacheHeader followed by image data.
  * Zlib compression with user definable level can be used to compress image data(per image)
- * Images are written in oreder in which they are rendered.
+ * Images are written in order in which they are rendered.
  * Overwriting of individual entry is not possible.
  * Stored images are deleted by invalidation, or when size of all files exceeds maximum
  * size specified in user preferences.
@@ -243,7 +243,7 @@ static void seq_disk_cache_get_files(SeqDiskCache *disk_cache, char *path)
     if (is_dir && !FILENAME_IS_CURRPAR(file)) {
       char subpath[FILE_MAX];
       BLI_strncpy(subpath, fl->path, sizeof(subpath));
-      BLI_add_slash(subpath);
+      BLI_path_slash_ensure(subpath);
       seq_disk_cache_get_files(disk_cache, subpath);
     }
 
@@ -262,17 +262,12 @@ static void seq_disk_cache_get_files(SeqDiskCache *disk_cache, char *path)
 
 static DiskCacheFile *seq_disk_cache_get_oldest_file(SeqDiskCache *disk_cache)
 {
-  DiskCacheFile *cache_file = disk_cache->files.first;
-  if (!cache_file) {
+  DiskCacheFile *oldest_file = disk_cache->files.first;
+  if (oldest_file == NULL) {
     return NULL;
   }
-
-  DiskCacheFile *oldest_file = cache_file;
-  __time64_t oldest_timestamp = cache_file->fstat.st_mtime;
-
-  for (; cache_file; cache_file = cache_file->next) {
-    if (cache_file->fstat.st_mtime < oldest_timestamp) {
-      oldest_timestamp = cache_file->fstat.st_mtime;
+  for (DiskCacheFile *cache_file = oldest_file->next; cache_file; cache_file = cache_file->next) {
+    if (cache_file->fstat.st_mtime < oldest_file->fstat.st_mtime) {
       oldest_file = cache_file;
     }
   }
@@ -444,7 +439,7 @@ static void seq_disk_cache_delete_invalid_files(SeqDiskCache *disk_cache,
   DiskCacheFile *next_file, *cache_file = disk_cache->files.first;
   char cache_dir[FILE_MAX];
   seq_disk_cache_get_dir(disk_cache, scene, seq, cache_dir, sizeof(cache_dir));
-  BLI_add_slash(cache_dir);
+  BLI_path_slash_ensure(cache_dir);
 
   while (cache_file) {
     next_file = cache_file->next;
@@ -1158,7 +1153,8 @@ void BKE_sequencer_cache_cleanup(Scene *scene)
 void BKE_sequencer_cache_cleanup_sequence(Scene *scene,
                                           Sequence *seq,
                                           Sequence *seq_changed,
-                                          int invalidate_types)
+                                          int invalidate_types,
+                                          bool force_seq_changed_range)
 {
   SeqCache *cache = seq_cache_get_from_scene(scene);
   if (!cache) {
@@ -1174,12 +1170,14 @@ void BKE_sequencer_cache_cleanup_sequence(Scene *scene,
   int range_start = seq_changed->startdisp;
   int range_end = seq_changed->enddisp;
 
-  if (seq->startdisp > range_start) {
-    range_start = seq->startdisp;
-  }
+  if (!force_seq_changed_range) {
+    if (seq->startdisp > range_start) {
+      range_start = seq->startdisp;
+    }
 
-  if (seq->enddisp < range_end) {
-    range_end = seq->enddisp;
+    if (seq->enddisp < range_end) {
+      range_end = seq->enddisp;
+    }
   }
 
   int invalidate_composite = invalidate_types & SEQ_CACHE_STORE_FINAL_OUT;
@@ -1219,12 +1217,21 @@ void BKE_sequencer_cache_cleanup_sequence(Scene *scene,
 struct ImBuf *BKE_sequencer_cache_get(
     const SeqRenderData *context, Sequence *seq, float cfra, int type, bool skip_disk_cache)
 {
+
+  if (context->skip_cache || context->is_proxy_render || !seq) {
+    return NULL;
+  }
+
   Scene *scene = context->scene;
 
   if (context->is_prefetch_render) {
     context = BKE_sequencer_prefetch_get_original_context(context);
     scene = context->scene;
     seq = BKE_sequencer_prefetch_get_original_sequence(seq, scene);
+  }
+
+  if (!seq) {
+    return NULL;
   }
 
   if (!scene->ed->cache) {
@@ -1289,6 +1296,10 @@ bool BKE_sequencer_cache_put_if_possible(const SeqRenderData *context,
     seq = BKE_sequencer_prefetch_get_original_sequence(seq, scene);
   }
 
+  if (!seq) {
+    return false;
+  }
+
   if (BKE_sequencer_cache_recycle_item(scene)) {
     BKE_sequencer_cache_put(context, seq, cfra, type, ibuf, cost, skip_disk_cache);
     return true;
@@ -1308,16 +1319,16 @@ void BKE_sequencer_cache_put(const SeqRenderData *context,
                              float cost,
                              bool skip_disk_cache)
 {
+  if (i == NULL || context->skip_cache || context->is_proxy_render || !seq) {
+    return;
+  }
+
   Scene *scene = context->scene;
 
   if (context->is_prefetch_render) {
     context = BKE_sequencer_prefetch_get_original_context(context);
     scene = context->scene;
     seq = BKE_sequencer_prefetch_get_original_sequence(seq, scene);
-  }
-
-  if (i == NULL || context->skip_cache || context->is_proxy_render || !seq) {
-    return;
   }
 
   /* Prevent reinserting, it breaks cache key linking. */
@@ -1406,24 +1417,11 @@ void BKE_sequencer_cache_put(const SeqRenderData *context,
   }
 }
 
-size_t BKE_sequencer_cache_get_num_items(struct Scene *scene)
-{
-  SeqCache *cache = seq_cache_get_from_scene(scene);
-  if (!cache) {
-    return 0;
-  }
-
-  seq_cache_lock(scene);
-  size_t num_items = BLI_ghash_len(cache->hash);
-  seq_cache_unlock(scene);
-
-  return num_items;
-}
-
 void BKE_sequencer_cache_iterate(
     struct Scene *scene,
     void *userdata,
-    bool callback(void *userdata, struct Sequence *seq, int nfra, int cache_type, float cost))
+    bool callback_init(void *userdata, size_t item_count),
+    bool callback_iter(void *userdata, struct Sequence *seq, int nfra, int cache_type, float cost))
 {
   SeqCache *cache = seq_cache_get_from_scene(scene);
   if (!cache) {
@@ -1431,15 +1429,16 @@ void BKE_sequencer_cache_iterate(
   }
 
   seq_cache_lock(scene);
+  bool interrupt = callback_init(userdata, BLI_ghash_len(cache->hash));
+
   GHashIterator gh_iter;
   BLI_ghashIterator_init(&gh_iter, cache->hash);
-  bool interrupt = false;
 
   while (!BLI_ghashIterator_done(&gh_iter) && !interrupt) {
     SeqCacheKey *key = BLI_ghashIterator_getKey(&gh_iter);
     BLI_ghashIterator_step(&gh_iter);
 
-    interrupt = callback(userdata, key->seq, key->nfra, key->type, key->cost);
+    interrupt = callback_iter(userdata, key->seq, key->nfra, key->type, key->cost);
   }
 
   cache->last_key = NULL;

@@ -19,11 +19,10 @@
  * \brief Class to build silhouette edges from a Winged-Edge structure
  */
 
-/* clang-format off */
 #include <algorithm>
 #include <memory>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 
 #include "FRS_freestyle.h"
 
@@ -34,13 +33,12 @@
 #include "SphericalGrid.h"
 #include "ViewMapBuilder.h"
 
-#include "../geometry/GridHelpers.h"
 #include "../geometry/GeomUtils.h"
+#include "../geometry/GridHelpers.h"
 
 #include "../winged_edge/WFillGrid.h"
 
 #include "BKE_global.h"
-/* clang-format on */
 
 namespace Freestyle {
 
@@ -2275,10 +2273,10 @@ void ViewMapBuilder::ComputeIntersections(ViewMap *ioViewMap,
 #endif
 }
 
-struct less_SVertex2D : public binary_function<SVertex *, SVertex *, bool> {
+struct less_SVertex2D {
   real epsilon;
 
-  less_SVertex2D(real eps) : binary_function<SVertex *, SVertex *, bool>()
+  less_SVertex2D(real eps)
   {
     epsilon = eps;
   }
@@ -2305,10 +2303,10 @@ struct less_SVertex2D : public binary_function<SVertex *, SVertex *, bool> {
 typedef Segment<FEdge *, Vec3r> segment;
 typedef Intersection<segment> intersection;
 
-struct less_Intersection : public binary_function<intersection *, intersection *, bool> {
+struct less_Intersection {
   segment *edge;
 
-  less_Intersection(segment *iEdge) : binary_function<intersection *, intersection *, bool>()
+  less_Intersection(segment *iEdge)
   {
     edge = iEdge;
   }

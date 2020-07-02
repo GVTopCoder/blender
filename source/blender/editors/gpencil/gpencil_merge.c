@@ -35,6 +35,7 @@
 #include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_geom.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_report.h"
@@ -116,7 +117,7 @@ static bGPDstroke *gpencil_prepare_stroke(bContext *C, wmOperator *op, int totpo
   /* if not exist, create a new one */
   if ((paint->brush == NULL) || (paint->brush->gpencil_settings == NULL)) {
     /* create new brushes */
-    BKE_brush_gpencil_paint_presets(bmain, ts);
+    BKE_brush_gpencil_paint_presets(bmain, ts, false);
   }
   Brush *brush = paint->brush;
 
@@ -131,18 +132,8 @@ static bGPDstroke *gpencil_prepare_stroke(bContext *C, wmOperator *op, int totpo
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, add_frame_mode);
 
   /* stroke */
-  bGPDstroke *gps = MEM_callocN(sizeof(bGPDstroke), "gp_stroke");
-  gps->totpoints = totpoints;
-  gps->inittime = 0.0f;
-  gps->thickness = brush->size;
-  gps->hardeness = brush->gpencil_settings->hardeness;
-  copy_v2_v2(gps->aspect_ratio, brush->gpencil_settings->aspect_ratio);
+  bGPDstroke *gps = BKE_gpencil_stroke_new(MAX2(ob->actcol - 1, 0), totpoints, brush->size);
   gps->flag |= GP_STROKE_SELECT;
-  gps->flag |= GP_STROKE_3DSPACE;
-  gps->mat_nr = ob->actcol - 1;
-
-  /* allocate memory for points */
-  gps->points = MEM_callocN(sizeof(bGPDspoint) * totpoints, "gp_stroke_points");
 
   if (cyclic) {
     gps->flag |= GP_STROKE_CYCLIC;
@@ -187,7 +178,7 @@ static void gpencil_dissolve_points(bContext *C)
     }
 
     LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
-      gp_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_TAG, false, 0);
+      gpencil_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_TAG, false, 0);
     }
   }
   CTX_DATA_END;
@@ -440,7 +431,7 @@ static int gpencil_analyze_strokes(tGPencilPointCache *src_array,
   return last;
 }
 
-static bool gp_strokes_merge_poll(bContext *C)
+static bool gpencil_strokes_merge_poll(bContext *C)
 {
   /* only supported with grease pencil objects */
   Object *ob = CTX_data_active_object(C);
@@ -471,7 +462,7 @@ static bool gp_strokes_merge_poll(bContext *C)
   return (CTX_DATA_COUNT(C, editable_gpencil_strokes) != 0) && ED_operator_view3d_active(C);
 }
 
-static int gp_stroke_merge_exec(bContext *C, wmOperator *op)
+static int gpencil_stroke_merge_exec(bContext *C, wmOperator *op)
 {
   const int mode = RNA_enum_get(op->ptr, "mode");
   const bool clear_point = RNA_boolean_get(op->ptr, "clear_point");
@@ -528,6 +519,8 @@ static int gp_stroke_merge_exec(bContext *C, wmOperator *op)
     gpencil_dissolve_points(C);
   }
 
+  BKE_gpencil_stroke_geometry_update(gps);
+
   /* free memory */
   MEM_SAFE_FREE(original_array);
   MEM_SAFE_FREE(sorted_array);
@@ -553,8 +546,8 @@ void GPENCIL_OT_stroke_merge(wmOperatorType *ot)
   ot->description = "Create a new stroke with the selected stroke points";
 
   /* api callbacks */
-  ot->exec = gp_stroke_merge_exec;
-  ot->poll = gp_strokes_merge_poll;
+  ot->exec = gpencil_stroke_merge_exec;
+  ot->poll = gpencil_strokes_merge_poll;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -570,7 +563,7 @@ void GPENCIL_OT_stroke_merge(wmOperatorType *ot)
 }
 
 /* Merge similar materials. */
-static bool gp_stroke_merge_material_poll(bContext *C)
+static bool gpencil_stroke_merge_material_poll(bContext *C)
 {
   /* only supported with grease pencil objects */
   Object *ob = CTX_data_active_object(C);
@@ -581,7 +574,7 @@ static bool gp_stroke_merge_material_poll(bContext *C)
   return true;
 }
 
-static int gp_stroke_merge_material_exec(bContext *C, wmOperator *op)
+static int gpencil_stroke_merge_material_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = (bGPdata *)ob->data;
@@ -629,7 +622,7 @@ static int gp_stroke_merge_material_exec(bContext *C, wmOperator *op)
 
   /* notifiers */
   if (changed) {
-    BKE_reportf(op->reports, RPT_INFO, "Merged %d materiales of %d", removed, *totcol);
+    BKE_reportf(op->reports, RPT_INFO, "Merged %d materials of %d", removed, *totcol);
     DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
   }
@@ -649,8 +642,8 @@ void GPENCIL_OT_stroke_merge_material(wmOperatorType *ot)
   ot->description = "Replace materials in strokes merging similar";
 
   /* api callbacks */
-  ot->exec = gp_stroke_merge_material_exec;
-  ot->poll = gp_stroke_merge_material_poll;
+  ot->exec = gpencil_stroke_merge_material_exec;
+  ot->poll = gpencil_stroke_merge_material_poll;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;

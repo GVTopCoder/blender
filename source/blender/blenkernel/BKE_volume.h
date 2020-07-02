@@ -1,6 +1,4 @@
 /*
- * ***** BEGIN GPL LICENSE BLOCK *****
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
@@ -14,18 +12,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * Contributor(s): Brecht Van Lommel.
- *
- * ***** END GPL LICENSE BLOCK *****
  */
 
 #ifndef __BKE_VOLUME_H__
 #define __BKE_VOLUME_H__
 
-/** \file BKE_volume.h
- *  \ingroup bke
- *  \brief Volume datablock.
+/** \file
+ * \ingroup bke
+ * \brief Volume datablock.
  */
 #ifdef __cplusplus
 extern "C" {
@@ -91,6 +85,7 @@ bool BKE_volume_is_loaded(const struct Volume *volume);
 
 int BKE_volume_num_grids(const struct Volume *volume);
 const char *BKE_volume_grids_error_msg(const struct Volume *volume);
+const char *BKE_volume_grids_frame_filepath(const struct Volume *volume);
 VolumeGrid *BKE_volume_grid_get(const struct Volume *volume, int grid_index);
 VolumeGrid *BKE_volume_grid_active_get(const struct Volume *volume);
 VolumeGrid *BKE_volume_grid_find(const struct Volume *volume, const char *name);

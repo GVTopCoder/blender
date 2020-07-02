@@ -21,8 +21,8 @@
  * \ingroup nodes
  */
 
-#include <string.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "DNA_node_types.h"
 
@@ -38,9 +38,9 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "NOD_common.h"
 #include "node_common.h"
 #include "node_util.h"
-#include "NOD_common.h"
 
 enum {
   REFINE_FORWARD = 1 << 0,
@@ -125,7 +125,7 @@ static bNodeSocket *group_verify_socket(
   bNodeSocket *sock;
 
   for (sock = verify_lb->first; sock; sock = sock->next) {
-    if (STREQ(sock->identifier, iosock->identifier)) {
+    if (sock->typeinfo == iosock->typeinfo && STREQ(sock->identifier, iosock->identifier)) {
       break;
     }
   }

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "render/camera.h"
-#include "device/device.h"
 #include "render/film.h"
+#include "device/device.h"
+#include "render/camera.h"
 #include "render/integrator.h"
 #include "render/mesh.h"
 #include "render/scene.h"
@@ -196,6 +196,10 @@ void Pass::add(PassType type, vector<Pass> &passes, const char *name)
     case PASS_AOV_VALUE:
       pass.components = 1;
       break;
+    case PASS_BAKE_PRIMITIVE:
+    case PASS_BAKE_DIFFERENTIAL:
+      pass.components = 4;
+      break;
     default:
       assert(false);
       break;
@@ -203,9 +207,10 @@ void Pass::add(PassType type, vector<Pass> &passes, const char *name)
 
   passes.push_back(pass);
 
-  /* order from by components, to ensure alignment so passes with size 4
-   * come first and then passes with size 1 */
-  sort(&passes[0], &passes[0] + passes.size(), compare_pass_order);
+  /* Order from by components, to ensure alignment so passes with size 4
+   * come first and then passes with size 1. Note this must use stable sort
+   * so cryptomatte passes remain in the right order. */
+  stable_sort(&passes[0], &passes[0] + passes.size(), compare_pass_order);
 
   if (pass.divide_type != PASS_NONE)
     Pass::add(pass.divide_type, passes);
@@ -361,8 +366,10 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
   kfilm->light_pass_flag = 0;
   kfilm->pass_stride = 0;
   kfilm->use_light_pass = use_light_visibility;
+  kfilm->pass_aov_value_num = 0;
+  kfilm->pass_aov_color_num = 0;
 
-  bool have_cryptomatte = false, have_aov_color = false, have_aov_value = false;
+  bool have_cryptomatte = false;
 
   for (size_t i = 0; i < passes.size(); i++) {
     Pass &pass = passes[i];
@@ -383,10 +390,12 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
     if (pass.type <= PASS_CATEGORY_MAIN_END) {
       kfilm->pass_flag |= pass_flag;
     }
-    else {
-      assert(pass.type <= PASS_CATEGORY_LIGHT_END);
+    else if (pass.type <= PASS_CATEGORY_LIGHT_END) {
       kfilm->use_light_pass = 1;
       kfilm->light_pass_flag |= pass_flag;
+    }
+    else {
+      assert(pass.type <= PASS_CATEGORY_BAKE_END);
     }
 
     switch (pass.type) {
@@ -468,6 +477,13 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
         kfilm->pass_volume_direct = kfilm->pass_stride;
         break;
 
+      case PASS_BAKE_PRIMITIVE:
+        kfilm->pass_bake_primitive = kfilm->pass_stride;
+        break;
+      case PASS_BAKE_DIFFERENTIAL:
+        kfilm->pass_bake_differential = kfilm->pass_stride;
+        break;
+
 #ifdef WITH_CYCLES_DEBUG
       case PASS_BVH_TRAVERSED_NODES:
         kfilm->pass_bvh_traversed_nodes = kfilm->pass_stride;
@@ -497,16 +513,16 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
         kfilm->pass_sample_count = kfilm->pass_stride;
         break;
       case PASS_AOV_COLOR:
-        if (!have_aov_color) {
+        if (kfilm->pass_aov_color_num == 0) {
           kfilm->pass_aov_color = kfilm->pass_stride;
-          have_aov_color = true;
         }
+        kfilm->pass_aov_color_num++;
         break;
       case PASS_AOV_VALUE:
-        if (!have_aov_value) {
+        if (kfilm->pass_aov_value_num == 0) {
           kfilm->pass_aov_value = kfilm->pass_stride;
-          have_aov_value = true;
         }
+        kfilm->pass_aov_value_num++;
         break;
       default:
         assert(false);

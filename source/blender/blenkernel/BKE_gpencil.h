@@ -28,7 +28,6 @@
 extern "C" {
 #endif
 
-struct BoundBox;
 struct Brush;
 struct CurveMapping;
 struct Depsgraph;
@@ -42,6 +41,7 @@ struct Object;
 struct Scene;
 struct SpaceImage;
 struct ToolSettings;
+struct ViewLayer;
 struct bDeformGroup;
 struct bGPDframe;
 struct bGPDlayer;
@@ -69,21 +69,21 @@ struct bGPdata;
 
 /* Vertex Color macros. */
 #define GPENCIL_USE_VERTEX_COLOR(toolsettings) \
-  ((toolsettings->gp_paint->mode == GPPAINT_FLAG_USE_VERTEXCOLOR))
+  (((toolsettings)->gp_paint->mode == GPPAINT_FLAG_USE_VERTEXCOLOR))
 #define GPENCIL_USE_VERTEX_COLOR_STROKE(toolsettings, brush) \
   ((GPENCIL_USE_VERTEX_COLOR(toolsettings) && \
-    ((brush->gpencil_settings->vertex_mode == GPPAINT_MODE_STROKE) || \
-     (brush->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))))
+    (((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_STROKE) || \
+     ((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))))
 #define GPENCIL_USE_VERTEX_COLOR_FILL(toolsettings, brush) \
   ((GPENCIL_USE_VERTEX_COLOR(toolsettings) && \
-    ((brush->gpencil_settings->vertex_mode == GPPAINT_MODE_FILL) || \
-     (brush->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))))
+    (((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_FILL) || \
+     ((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))))
 #define GPENCIL_TINT_VERTEX_COLOR_STROKE(brush) \
-  ((brush->gpencil_settings->vertex_mode == GPPAINT_MODE_STROKE) || \
-   (brush->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))
+  (((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_STROKE) || \
+   ((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))
 #define GPENCIL_TINT_VERTEX_COLOR_FILL(brush) \
-  ((brush->gpencil_settings->vertex_mode == GPPAINT_MODE_FILL) || \
-   (brush->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))
+  (((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_FILL) || \
+   ((brush)->gpencil_settings->vertex_mode == GPPAINT_MODE_BOTH))
 
 /* ------------ Grease-Pencil API ------------------ */
 
@@ -96,6 +96,7 @@ void BKE_gpencil_free_layers(struct ListBase *list);
 void BKE_gpencil_free(struct bGPdata *gpd, bool free_all);
 void BKE_gpencil_eval_delete(struct bGPdata *gpd_eval);
 void BKE_gpencil_free_layer_masks(struct bGPDlayer *gpl);
+void BKE_gpencil_tag(struct bGPdata *gpd);
 
 void BKE_gpencil_batch_cache_dirty_tag(struct bGPdata *gpd);
 void BKE_gpencil_batch_cache_free(struct bGPdata *gpd);
@@ -226,17 +227,7 @@ struct Material *BKE_gpencil_object_material_ensure_from_active_input_brush(stru
                                                                             struct Brush *brush);
 struct Material *BKE_gpencil_object_material_ensure_from_active_input_material(struct Object *ob);
 
-/* object boundbox */
-bool BKE_gpencil_data_minmax(const struct bGPdata *gpd, float r_min[3], float r_max[3]);
-bool BKE_gpencil_stroke_minmax(const struct bGPDstroke *gps,
-                               const bool use_select,
-                               float r_min[3],
-                               float r_max[3]);
 bool BKE_gpencil_stroke_select_check(const struct bGPDstroke *gps);
-
-struct BoundBox *BKE_gpencil_boundbox_get(struct Object *ob);
-void BKE_gpencil_centroid_3d(struct bGPdata *gpd, float r_centroid[3]);
-void BKE_gpencil_stroke_boundingbox_calc(struct bGPDstroke *gps);
 
 /* vertex groups */
 void BKE_gpencil_dvert_ensure(struct bGPDstroke *gps);
@@ -246,65 +237,9 @@ void BKE_gpencil_stroke_weights_duplicate(struct bGPDstroke *gps_src, struct bGP
 /* Set active frame by layer. */
 void BKE_gpencil_frame_active_set(struct Depsgraph *depsgraph, struct bGPdata *gpd);
 
-/* stroke geometry utilities */
-void BKE_gpencil_stroke_normal(const struct bGPDstroke *gps, float r_normal[3]);
-void BKE_gpencil_stroke_simplify_adaptive(struct bGPDstroke *gps, float factor);
-void BKE_gpencil_stroke_simplify_fixed(struct bGPDstroke *gps);
-void BKE_gpencil_stroke_subdivide(struct bGPDstroke *gps, int level, int type);
-bool BKE_gpencil_stroke_trim(struct bGPDstroke *gps);
-void BKE_gpencil_stroke_merge_distance(struct bGPDframe *gpf,
-                                       struct bGPDstroke *gps,
-                                       const float threshold,
-                                       const bool use_unselected);
-
-void BKE_gpencil_stroke_2d_flat(const struct bGPDspoint *points,
-                                int totpoints,
-                                float (*points2d)[2],
-                                int *r_direction);
-void BKE_gpencil_stroke_2d_flat_ref(const struct bGPDspoint *ref_points,
-                                    int ref_totpoints,
-                                    const struct bGPDspoint *points,
-                                    int totpoints,
-                                    float (*points2d)[2],
-                                    const float scale,
-                                    int *r_direction);
-void BKE_gpencil_stroke_fill_triangulate(struct bGPDstroke *gps);
-void BKE_gpencil_stroke_geometry_update(struct bGPDstroke *gps);
-void BKE_gpencil_stroke_uv_update(struct bGPDstroke *gps);
-
-void BKE_gpencil_transform(struct bGPdata *gpd, float mat[4][4]);
-
-bool BKE_gpencil_stroke_sample(struct bGPDstroke *gps, const float dist, const bool select);
-bool BKE_gpencil_stroke_smooth(struct bGPDstroke *gps, int i, float inf);
-bool BKE_gpencil_stroke_smooth_strength(struct bGPDstroke *gps, int point_index, float influence);
-bool BKE_gpencil_stroke_smooth_thickness(struct bGPDstroke *gps, int point_index, float influence);
-bool BKE_gpencil_stroke_smooth_uv(struct bGPDstroke *gps, int point_index, float influence);
-bool BKE_gpencil_stroke_close(struct bGPDstroke *gps);
-void BKE_gpencil_dissolve_points(struct bGPDframe *gpf, struct bGPDstroke *gps, const short tag);
-
-bool BKE_gpencil_stroke_stretch(struct bGPDstroke *gps, const float dist, const float tip_length);
-bool BKE_gpencil_stroke_trim_points(struct bGPDstroke *gps,
-                                    const int index_from,
-                                    const int index_to);
-bool BKE_gpencil_stroke_split(struct bGPDframe *gpf,
-                              struct bGPDstroke *gps,
-                              const int before_index,
-                              struct bGPDstroke **remaining_gps);
-bool BKE_gpencil_stroke_shrink(struct bGPDstroke *gps, const float dist);
-
-float BKE_gpencil_stroke_length(const struct bGPDstroke *gps, bool use_3d);
-
 void BKE_gpencil_frame_range_selected(struct bGPDlayer *gpl, int *r_initframe, int *r_endframe);
 float BKE_gpencil_multiframe_falloff_calc(
     struct bGPDframe *gpf, int actnum, int f_init, int f_end, struct CurveMapping *cur_falloff);
-
-void BKE_gpencil_convert_curve(struct Main *bmain,
-                               struct Scene *scene,
-                               struct Object *ob_gp,
-                               struct Object *ob_cu,
-                               const bool gpencil_lines,
-                               const bool use_collections,
-                               const bool only_stroke);
 
 void BKE_gpencil_palette_ensure(struct Main *bmain, struct Scene *scene);
 
@@ -320,7 +255,8 @@ typedef void (*gpIterCb)(struct bGPDlayer *layer,
                          struct bGPDstroke *stroke,
                          void *thunk);
 
-void BKE_gpencil_visible_stroke_iter(struct Object *ob,
+void BKE_gpencil_visible_stroke_iter(struct ViewLayer *view_layer,
+                                     struct Object *ob,
                                      gpIterCb layer_cb,
                                      gpIterCb stroke_cb,
                                      void *thunk,

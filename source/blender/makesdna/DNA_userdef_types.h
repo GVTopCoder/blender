@@ -169,7 +169,11 @@ typedef struct ThemeUI {
   short menu_shadow_width;
 
   unsigned char editor_outline[4];
-  char _pad0[2];
+
+  /* Transparent Grid */
+  unsigned char transparent_checker_primary[4], transparent_checker_secondary[4];
+  unsigned char transparent_checker_size;
+  char _pad1[1];
 
   float icon_alpha;
   float icon_saturation;
@@ -182,6 +186,7 @@ typedef struct ThemeUI {
   unsigned char gizmo_hi[4];
   unsigned char gizmo_primary[4];
   unsigned char gizmo_secondary[4];
+  unsigned char gizmo_view_align[4];
   unsigned char gizmo_a[4];
   unsigned char gizmo_b[4];
 
@@ -200,7 +205,6 @@ typedef struct ThemeUI {
   unsigned char icon_shading[4];
   /** File folders. */
   unsigned char icon_folder[4];
-  char _pad2[4];
   /** Intensity of the border icons. >0 will render an border around themed
    * icons. */
   float icon_border_intensity;
@@ -614,8 +618,12 @@ typedef struct UserDef_FileSpaceData {
 } UserDef_FileSpaceData;
 
 typedef struct UserDef_Experimental {
-  char use_undo_speedup;
-  char _pad0[7]; /* makesdna does not allow empty structs. */
+  char use_undo_legacy;
+  char use_new_particle_system;
+  char use_new_hair_type;
+  char use_cycles_debug;
+  /** `makesdna` does not allow empty structs. */
+  char _pad0[4];
 } UserDef_Experimental;
 
 #define USER_EXPERIMENTAL_TEST(userdef, member) \
@@ -628,12 +636,12 @@ typedef struct UserDef {
   /** #eUserPref_Flag. */
   int flag;
   /** #eDupli_ID_Flags. */
-  short dupflag;
+  unsigned int dupflag;
   /** #eUserPref_PrefFlag preferences for the preferences. */
   char pref_flag;
   char savetime;
   char mouse_emulate_3_button_modifier;
-  char _pad4[3];
+  char _pad4[1];
   /** FILE_MAXDIR length. */
   char tempdir[768];
   char fontdir[768];
@@ -868,8 +876,10 @@ typedef struct UserDef {
   int sequencer_disk_cache_compression; /* eUserpref_DiskCacheCompression */
   int sequencer_disk_cache_size_limit;
   short sequencer_disk_cache_flag;
-
   char _pad5[2];
+
+  float collection_instance_empty_size;
+  char _pad10[4];
 
   struct WalkNavigation walk_navigation;
 
@@ -1115,12 +1125,12 @@ typedef enum eAutokey_Flag {
 typedef enum eUserpref_Translation_Flags {
   USER_TR_TOOLTIPS = (1 << 0),
   USER_TR_IFACE = (1 << 1),
-  USER_TR_UNUSED_2 = (1 << 2), /* cleared */
-  USER_TR_UNUSED_3 = (1 << 3), /* cleared */
-  USER_TR_UNUSED_4 = (1 << 4), /* cleared */
-  USER_DOTRANSLATE = (1 << 5),
-  USER_TR_UNUSED_6 = (1 << 6), /* cleared */
-  USER_TR_UNUSED_7 = (1 << 7), /* cleared */
+  USER_TR_UNUSED_2 = (1 << 2),            /* cleared */
+  USER_TR_UNUSED_3 = (1 << 3),            /* cleared */
+  USER_TR_UNUSED_4 = (1 << 4),            /* cleared */
+  USER_DOTRANSLATE_DEPRECATED = (1 << 5), /* Deprecated in 2.83. */
+  USER_TR_UNUSED_6 = (1 << 6),            /* cleared */
+  USER_TR_UNUSED_7 = (1 << 7),            /* cleared */
   USER_TR_NEWDATANAME = (1 << 8),
 } eUserpref_Translation_Flags;
 
@@ -1143,6 +1153,13 @@ typedef enum eDupli_ID_Flags {
   USER_DUP_HAIR = (1 << 14),
   USER_DUP_POINTCLOUD = (1 << 15),
   USER_DUP_VOLUME = (1 << 16),
+
+  USER_DUP_OBDATA = (~0) & ((1 << 24) - 1),
+
+  /* Those are not exposed as user preferences, only used internaly. */
+  USER_DUP_OBJECT = (1 << 24),
+  /* USER_DUP_COLLECTION = (1 << 25), */ /* UNUSED, keep because we may implement. */
+
 } eDupli_ID_Flags;
 
 /**
@@ -1182,7 +1199,7 @@ typedef enum eColorPicker_Types {
 } eColorPicker_Types;
 
 /**
- * Timecode display styles
+ * Time-code display styles.
  * #UserDef.timecode_style
  */
 typedef enum eTimecodeStyles {
@@ -1284,8 +1301,8 @@ typedef enum eUserpref_RenderDisplayType {
 } eUserpref_RenderDisplayType;
 
 typedef enum eUserpref_TempSpaceDisplayType {
-  USER_TEMP_SPACE_DISPLAY_FULLSCREEN,
-  USER_TEMP_SPACE_DISPLAY_WINDOW,
+  USER_TEMP_SPACE_DISPLAY_FULLSCREEN = 0,
+  USER_TEMP_SPACE_DISPLAY_WINDOW = 1,
 } eUserpref_TempSpaceDisplayType;
 
 typedef enum eUserpref_EmulateMMBMod {
@@ -1298,6 +1315,13 @@ typedef enum eUserpref_DiskCacheCompression {
   USER_SEQ_DISK_CACHE_COMPRESSION_LOW = 1,
   USER_SEQ_DISK_CACHE_COMPRESSION_HIGH = 2,
 } eUserpref_DiskCacheCompression;
+
+/* Locale Ids. Auto will try to get local from OS. Our default is English though. */
+/** #UserDef.language */
+enum {
+  ULANGUAGE_AUTO = 0,
+  ULANGUAGE_ENGLISH = 1,
+};
 
 #ifdef __cplusplus
 }

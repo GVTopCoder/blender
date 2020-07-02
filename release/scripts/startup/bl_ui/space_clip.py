@@ -918,6 +918,10 @@ class CLIP_PT_tracking_lens(Panel):
             col = layout.column(align=True)
             col.prop(camera, "division_k1")
             col.prop(camera, "division_k2")
+        elif camera.distortion_model == 'NUKE':
+            col = layout.column(align=True)
+            col.prop(camera, "nuke_k1")
+            col.prop(camera, "nuke_k2")
 
 
 class CLIP_PT_marker(CLIP_PT_tracking_panel, Panel):
@@ -1574,7 +1578,7 @@ class CLIP_MT_marker_pie(Menu):
         layout = self.layout
         pie = layout.menu_pie()
         # Use Location Tracking
-        prop = pie.operator("wm.context_set_enum", text="Loc")
+        prop = pie.operator("wm.context_set_enum", text="Location")
         prop.data_path = "space_data.clip.tracking.tracks.active.motion_model"
         prop.value = "Loc"
         # Use Affine Tracking

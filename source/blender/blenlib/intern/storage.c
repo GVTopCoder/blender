@@ -23,9 +23,9 @@
  * Some really low-level file operations.
  */
 
-#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #include <sys/stat.h>
 
@@ -38,8 +38,8 @@
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || \
     defined(__DragonFly__)
 /* For statfs */
-#  include <sys/param.h>
 #  include <sys/mount.h>
+#  include <sys/param.h>
 #endif
 
 #if defined(__linux__) || defined(__hpux) || defined(__GNU__) || defined(__GLIBC__)
@@ -50,26 +50,27 @@
 #include <string.h> /* strcpy etc.. */
 
 #ifdef WIN32
-#  include <io.h>
-#  include <direct.h>
-#  include <stdbool.h>
-#  include "BLI_winstuff.h"
 #  include "BLI_string_utf8.h"
+#  include "BLI_winstuff.h"
 #  include "utfconv.h"
+#  include <direct.h>
+#  include <io.h>
+#  include <shobjidl_core.h>
+#  include <stdbool.h>
 #else
+#  include <pwd.h>
 #  include <sys/ioctl.h>
 #  include <unistd.h>
-#  include <pwd.h>
 #endif
 
 /* lib includes */
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
-#include "BLI_linklist.h"
-#include "BLI_string.h"
 #include "BLI_fileops.h"
+#include "BLI_linklist.h"
 #include "BLI_path_util.h"
+#include "BLI_string.h"
+#include "BLI_utildefines.h"
 
 /**
  * Copies the current working directory into *dir (max size maxncpy), and
@@ -226,13 +227,22 @@ size_t BLI_file_size(const char *path)
   return stats.st_size;
 }
 
+/* Return file attributes. Apple version of this function is defined in storage_apple.mm */
+#ifndef __APPLE__
 eFileAttributes BLI_file_attributes(const char *path)
 {
   int ret = 0;
 
-#ifdef WIN32
-  wchar_t wline[FILE_MAXDIR];
-  BLI_strncpy_wchar_from_utf8(wline, path, ARRAY_SIZE(wline));
+#  ifdef WIN32
+
+  if (BLI_path_extension_check(path, ".lnk")) {
+    return FILE_ATTR_ALIAS;
+  }
+
+  WCHAR wline[FILE_MAXDIR];
+  if (conv_utf_8_to_16(path, wline, ARRAY_SIZE(wline)) != 0) {
+    return ret;
+  }
   DWORD attr = GetFileAttributesW(wline);
   if (attr & FILE_ATTRIBUTE_READONLY) {
     ret |= FILE_ATTR_READONLY;
@@ -265,19 +275,9 @@ eFileAttributes BLI_file_attributes(const char *path)
     ret |= FILE_ATTR_REPARSE_POINT;
   }
 
-#endif
+#  endif
 
-#ifdef __APPLE__
-
-  /* TODO:
-   * If Hidden (Invisible) set FILE_ATTR_HIDDEN
-   * If Locked set FILE_ATTR_READONLY
-   * If Restricted set FILE_ATTR_RESTRICTED
-   */
-
-#endif
-
-#ifdef __linux__
+#  ifdef __linux__
   UNUSED_VARS(path);
 
   /* TODO:
@@ -285,10 +285,60 @@ eFileAttributes BLI_file_attributes(const char *path)
    * If Archived set FILE_ATTR_ARCHIVE
    */
 
-#endif
+#  endif
 
   return ret;
 }
+#endif
+
+/* Return alias/shortcut file target. Apple version is defined in storage_apple.mm */
+#ifndef __APPLE__
+bool BLI_file_alias_target(char target[FILE_MAXDIR], const char *filepath)
+{
+#  ifdef WIN32
+  if (!BLI_path_extension_check(filepath, ".lnk")) {
+    return false;
+  }
+
+  IShellLinkW *Shortcut = NULL;
+  bool success = false;
+  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+  HRESULT hr = CoCreateInstance(
+      &CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (LPVOID *)&Shortcut);
+  if (SUCCEEDED(hr)) {
+    IPersistFile *PersistFile;
+    hr = Shortcut->lpVtbl->QueryInterface(Shortcut, &IID_IPersistFile, (LPVOID *)&PersistFile);
+    if (SUCCEEDED(hr)) {
+      WCHAR path_utf16[FILE_MAXDIR] = {0};
+      if (conv_utf_8_to_16(filepath, path_utf16, ARRAY_SIZE(path_utf16)) == 0) {
+        hr = PersistFile->lpVtbl->Load(PersistFile, path_utf16, STGM_READ);
+        if (SUCCEEDED(hr)) {
+          hr = Shortcut->lpVtbl->Resolve(Shortcut, 0, SLR_NO_UI | SLR_UPDATE);
+          if (SUCCEEDED(hr)) {
+            wchar_t target_utf16[FILE_MAXDIR] = {0};
+            hr = Shortcut->lpVtbl->GetPath(Shortcut, target_utf16, FILE_MAXDIR, NULL, 0);
+            if (SUCCEEDED(hr)) {
+              success = (conv_utf_16_to_8(target_utf16, target, FILE_MAXDIR) == 0);
+            }
+          }
+          PersistFile->lpVtbl->Release(PersistFile);
+        }
+      }
+    }
+    Shortcut->lpVtbl->Release(Shortcut);
+  }
+
+  return (success && target[0]);
+#  endif
+
+#  ifdef __linux__
+  UNUSED_VARS(target, filepath);
+  /* File-based redirection not supported. */
+  return false;
+#  endif
+}
+#endif
 
 /**
  * Returns the st_mode from stat-ing the specified path name, or 0 if stat fails
@@ -312,7 +362,7 @@ int BLI_exists(const char *name)
    * 2. after the C:\ when the path is the volume only
    */
   if ((len >= 3) && (tmp_16[0] == L'\\') && (tmp_16[1] == L'\\')) {
-    BLI_cleanup_unc_16(tmp_16);
+    BLI_path_normalize_unc_16(tmp_16);
   }
 
   if ((tmp_16[1] == L':') && (tmp_16[2] == L'\0')) {
@@ -479,7 +529,7 @@ void *BLI_file_read_binary_as_mem(const char *filepath, size_t pad_bytes, size_t
  * Return the text file data with:
 
  * - Newlines replaced with '\0'.
- * - Optionally trim whitespace, replacing trailing ' ' & '\t' with '\0'.
+ * - Optionally trim white-space, replacing trailing <space> & <tab> with '\0'.
  *
  * This is an alternative to using #BLI_file_read_as_lines,
  * allowing us to loop over lines without converting it into a linked list

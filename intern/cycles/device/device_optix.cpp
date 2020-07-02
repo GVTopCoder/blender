@@ -17,28 +17,28 @@
 
 #ifdef WITH_OPTIX
 
-#  include "device/cuda/device_cuda.h"
-#  include "device/device_intern.h"
-#  include "device/device_denoising.h"
 #  include "bvh/bvh.h"
-#  include "render/scene.h"
+#  include "device/cuda/device_cuda.h"
+#  include "device/device_denoising.h"
+#  include "device/device_intern.h"
+#  include "render/buffers.h"
 #  include "render/hair.h"
 #  include "render/mesh.h"
 #  include "render/object.h"
-#  include "render/buffers.h"
+#  include "render/scene.h"
+#  include "util/util_debug.h"
+#  include "util/util_logging.h"
 #  include "util/util_md5.h"
 #  include "util/util_path.h"
 #  include "util/util_time.h"
-#  include "util/util_debug.h"
-#  include "util/util_logging.h"
 
 #  ifdef WITH_CUDA_DYNLOAD
 #    include <cuew.h>
 // Do not use CUDA SDK headers when using CUEW
 #    define OPTIX_DONT_INCLUDE_CUDA
 #  endif
-#  include <optix_stubs.h>
 #  include <optix_function_table_definition.h>
+#  include <optix_stubs.h>
 
 // TODO(pmours): Disable this once drivers have native support
 #  define OPTIX_DENOISER_NO_PIXEL_STRIDE 1
@@ -70,7 +70,7 @@ struct KernelParams {
       if (res != CUDA_SUCCESS) { \
         const char *name; \
         cuGetErrorName(res, &name); \
-        set_error(string_printf("OptiX CUDA error %s in %s, line %d", name, #stmt, __LINE__)); \
+        set_error(string_printf("%s in %s (device_optix.cpp:%d)", name, #stmt, __LINE__)); \
         return; \
       } \
     } \
@@ -81,7 +81,7 @@ struct KernelParams {
       if (res != CUDA_SUCCESS) { \
         const char *name; \
         cuGetErrorName(res, &name); \
-        set_error(string_printf("OptiX CUDA error %s in %s, line %d", name, #stmt, __LINE__)); \
+        set_error(string_printf("%s in %s (device_optix.cpp:%d)", name, #stmt, __LINE__)); \
         return false; \
       } \
     } \
@@ -92,7 +92,7 @@ struct KernelParams {
       enum OptixResult res = stmt; \
       if (res != OPTIX_SUCCESS) { \
         const char *name = optixGetErrorName(res); \
-        set_error(string_printf("OptiX error %s in %s, line %d", name, #stmt, __LINE__)); \
+        set_error(string_printf("%s in %s (device_optix.cpp:%d)", name, #stmt, __LINE__)); \
         return; \
       } \
     } \
@@ -102,7 +102,7 @@ struct KernelParams {
       enum OptixResult res = stmt; \
       if (res != OPTIX_SUCCESS) { \
         const char *name = optixGetErrorName(res); \
-        set_error(string_printf("OptiX error %s in %s, line %d", name, #stmt, __LINE__)); \
+        set_error(string_printf("%s in %s (device_optix.cpp:%d)", name, #stmt, __LINE__)); \
         return false; \
       } \
     } \
@@ -246,7 +246,7 @@ class OptiXDevice : public CUDADevice {
   ~OptiXDevice()
   {
     // Stop processing any more tasks
-    task_pool.stop();
+    task_pool.cancel();
 
     // Make CUDA context current
     const CUDAContextScope scope(cuContext);
@@ -322,12 +322,12 @@ class OptiXDevice : public CUDADevice {
 
     // Disable baking for now, since its kernel is not well-suited for inlining and is very slow
     if (requested_features.use_baking) {
-      set_error("OptiX implementation does not support baking yet");
+      set_error("OptiX backend does not support baking yet");
       return false;
     }
     // Disable shader raytracing support for now, since continuation callables are slow
     if (requested_features.use_shader_raytrace) {
-      set_error("OptiX implementation does not support shader raytracing yet");
+      set_error("OptiX backend does not support 'Ambient Occlusion' and 'Bevel' shader nodes yet");
       return false;
     }
 
@@ -383,11 +383,17 @@ class OptiXDevice : public CUDADevice {
 
     {  // Load and compile PTX module with OptiX kernels
       string ptx_data, ptx_filename = path_get("lib/kernel_optix.ptx");
-      if (use_adaptive_compilation()) {
+      if (use_adaptive_compilation() || path_file_size(ptx_filename) == -1) {
+        if (!getenv("OPTIX_ROOT_DIR")) {
+          set_error(
+              "Missing OPTIX_ROOT_DIR environment variable (which must be set with the path to "
+              "the Optix SDK to be able to compile Optix kernels on demand).");
+          return false;
+        }
         ptx_filename = compile_kernel(requested_features, "kernel_optix", "optix", true);
       }
       if (ptx_filename.empty() || !path_read_text(ptx_filename, ptx_data)) {
-        set_error("Failed loading OptiX kernel " + ptx_filename + ".");
+        set_error("Failed to load OptiX kernel from '" + ptx_filename + "'");
         return false;
       }
 
@@ -422,11 +428,20 @@ class OptiXDevice : public CUDADevice {
     group_descs[PG_HITS].hitgroup.entryFunctionNameAH = "__anyhit__kernel_optix_shadow_all_hit";
 
     if (requested_features.use_hair) {
-      // Add curve intersection programs
       group_descs[PG_HITD].hitgroup.moduleIS = optix_module;
-      group_descs[PG_HITD].hitgroup.entryFunctionNameIS = "__intersection__curve";
       group_descs[PG_HITS].hitgroup.moduleIS = optix_module;
-      group_descs[PG_HITS].hitgroup.entryFunctionNameIS = "__intersection__curve";
+
+      // Add curve intersection programs
+      if (requested_features.use_hair_thick) {
+        // Slower programs for thick hair since that also slows down ribbons.
+        // Ideally this should not be needed.
+        group_descs[PG_HITD].hitgroup.entryFunctionNameIS = "__intersection__curve_all";
+        group_descs[PG_HITS].hitgroup.entryFunctionNameIS = "__intersection__curve_all";
+      }
+      else {
+        group_descs[PG_HITD].hitgroup.entryFunctionNameIS = "__intersection__curve_ribbon";
+        group_descs[PG_HITS].hitgroup.entryFunctionNameIS = "__intersection__curve_ribbon";
+      }
     }
 
     if (requested_features.use_subsurface || requested_features.use_shader_raytrace) {
@@ -706,7 +721,7 @@ class OptiXDevice : public CUDADevice {
     const CUDAContextScope scope(cuContext);
 
     // Choose between OptiX and NLM denoising
-    if (task.denoising_use_optix) {
+    if (task.denoising.type == DENOISER_OPTIX) {
       // Map neighboring tiles onto this device, indices are as following:
       // Where index 4 is the center tile and index 9 is the target for the result.
       //   0 1 2
@@ -918,7 +933,8 @@ class OptiXDevice : public CUDADevice {
                              &rtiles[9].h,
                              &rtiles[9].offset,
                              &rtiles[9].stride,
-                             &task.pass_stride};
+                             &task.pass_stride,
+                             &rtile.sample};
       launch_filter_kernel(
           "kernel_cuda_filter_convert_from_rgb", rtiles[9].w, rtiles[9].h, output_args);
 #  endif
@@ -1429,21 +1445,21 @@ class OptiXDevice : public CUDADevice {
       KernelData *const data = (KernelData *)host;
       *(OptixTraversableHandle *)&data->bvh.scene = tlas_handle;
 
-      update_launch_params(name, offsetof(KernelParams, data), host, size);
+      update_launch_params(offsetof(KernelParams, data), host, size);
       return;
     }
 
     // Update data storage pointers in launch parameters
 #  define KERNEL_TEX(data_type, tex_name) \
     if (strcmp(name, #tex_name) == 0) { \
-      update_launch_params(name, offsetof(KernelParams, tex_name), host, size); \
+      update_launch_params(offsetof(KernelParams, tex_name), host, size); \
       return; \
     }
 #  include "kernel/kernel_textures.h"
 #  undef KERNEL_TEX
   }
 
-  void update_launch_params(const char *name, size_t offset, void *data, size_t data_size)
+  void update_launch_params(size_t offset, void *data, size_t data_size)
   {
     const CUDAContextScope scope(cuContext);
 
@@ -1456,15 +1472,6 @@ class OptiXDevice : public CUDADevice {
 
   void task_add(DeviceTask &task) override
   {
-    struct OptiXDeviceTask : public DeviceTask {
-      OptiXDeviceTask(OptiXDevice *device, DeviceTask &task, int task_index) : DeviceTask(task)
-      {
-        // Using task index parameter instead of thread index, since number of CUDA streams may
-        // differ from number of threads
-        run = function_bind(&OptiXDevice::thread_run, device, *this, task_index);
-      }
-    };
-
     // Upload texture information to device if it has changed since last launch
     load_texture_info();
 
@@ -1476,7 +1483,10 @@ class OptiXDevice : public CUDADevice {
 
     if (task.type == DeviceTask::DENOISE_BUFFER) {
       // Execute denoising in a single thread (e.g. to avoid race conditions during creation)
-      task_pool.push(new OptiXDeviceTask(this, task, 0));
+      task_pool.push([=] {
+        DeviceTask task_copy = task;
+        thread_run(task_copy, 0);
+      });
       return;
     }
 
@@ -1486,8 +1496,15 @@ class OptiXDevice : public CUDADevice {
 
     // Queue tasks in internal task pool
     int task_index = 0;
-    for (DeviceTask &task : tasks)
-      task_pool.push(new OptiXDeviceTask(this, task, task_index++));
+    for (DeviceTask &task : tasks) {
+      task_pool.push([=] {
+        // Using task index parameter instead of thread index, since number of CUDA streams may
+        // differ from number of threads
+        DeviceTask task_copy = task;
+        thread_run(task_copy, task_index);
+      });
+      task_index++;
+    }
   }
 
   void task_wait() override
@@ -1528,43 +1545,26 @@ bool device_optix_init()
   return true;
 }
 
-void device_optix_info(vector<DeviceInfo> &devices)
+void device_optix_info(const vector<DeviceInfo> &cuda_devices, vector<DeviceInfo> &devices)
 {
+  devices.reserve(cuda_devices.size());
+
   // Simply add all supported CUDA devices as OptiX devices again
-  vector<DeviceInfo> cuda_devices;
-  device_cuda_info(cuda_devices);
-
-  for (auto it = cuda_devices.begin(); it != cuda_devices.end();) {
-    DeviceInfo &info = *it;
+  for (DeviceInfo info : cuda_devices) {
     assert(info.type == DEVICE_CUDA);
-    info.type = DEVICE_OPTIX;
-    info.id += "_OptiX";
 
-    // Figure out RTX support
-    CUdevice cuda_device = 0;
-    CUcontext cuda_context = NULL;
-    unsigned int rtcore_version = 0;
-    if (cuDeviceGet(&cuda_device, info.num) == CUDA_SUCCESS &&
-        cuDevicePrimaryCtxRetain(&cuda_context, cuda_device) == CUDA_SUCCESS) {
-      OptixDeviceContext optix_context = NULL;
-      if (optixDeviceContextCreate(cuda_context, nullptr, &optix_context) == OPTIX_SUCCESS) {
-        optixDeviceContextGetProperty(optix_context,
-                                      OPTIX_DEVICE_PROPERTY_RTCORE_VERSION,
-                                      &rtcore_version,
-                                      sizeof(rtcore_version));
-        optixDeviceContextDestroy(optix_context);
-      }
-      cuDevicePrimaryCtxRelease(cuda_device);
+    int major;
+    cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, info.num);
+    if (major < 5) {
+      continue;  // Only Maxwell and up are supported by OptiX
     }
 
-    // Only add devices with RTX support
-    if (rtcore_version == 0)
-      it = cuda_devices.erase(it);
-    else
-      ++it;
-  }
+    info.type = DEVICE_OPTIX;
+    info.id += "_OptiX";
+    info.denoisers |= DENOISER_OPTIX;
 
-  devices.insert(devices.end(), cuda_devices.begin(), cuda_devices.end());
+    devices.push_back(info);
+  }
 }
 
 Device *device_optix_create(DeviceInfo &info, Stats &stats, Profiler &profiler, bool background)

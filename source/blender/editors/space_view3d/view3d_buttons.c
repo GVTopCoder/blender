@@ -21,17 +21,17 @@
  * \ingroup spview3d
  */
 
-#include <string.h>
-#include <stdio.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "DNA_armature_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_lattice_types.h"
-#include "DNA_meta_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_meta_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
@@ -39,20 +39,20 @@
 
 #include "BLT_translation.h"
 
-#include "BLI_math.h"
 #include "BLI_blenlib.h"
+#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_action.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_customdata.h"
-#include "BKE_screen.h"
-#include "BKE_editmesh.h"
 #include "BKE_deform.h"
+#include "BKE_editmesh.h"
 #include "BKE_object.h"
 #include "BKE_object_deform.h"
 #include "BKE_report.h"
+#include "BKE_screen.h"
 
 #include "DEG_depsgraph.h"
 
@@ -62,8 +62,8 @@
 #include "RNA_access.h"
 
 #include "ED_armature.h"
-#include "ED_object.h"
 #include "ED_mesh.h"
+#include "ED_object.h"
 #include "ED_screen.h"
 
 #include "UI_interface.h"
@@ -1005,7 +1005,7 @@ static void v3d_editvertex_buts(uiLayout *layout, View3D *v3d, Object *ob, float
           }
         }
         BKE_nurb_test_2d(nu);
-        BKE_nurb_handles_test(nu, true); /* test for bezier too */
+        BKE_nurb_handles_test(nu, true, false); /* test for bezier too */
 
         nu = nu->next;
       }
@@ -1140,9 +1140,9 @@ static bool view3d_panel_vgroup_poll(const bContext *C, PanelType *UNUSED(pt))
   return false;
 }
 
-static void view3d_panel_vgroup(const bContext *C, Panel *pa)
+static void view3d_panel_vgroup(const bContext *C, Panel *panel)
 {
-  uiBlock *block = uiLayoutAbsoluteBlock(pa->layout);
+  uiBlock *block = uiLayoutAbsoluteBlock(panel->layout);
   Scene *scene = CTX_data_scene(C);
   ViewLayer *view_layer = CTX_data_view_layer(C);
   Object *ob = view_layer->basact->object;
@@ -1171,7 +1171,7 @@ static void view3d_panel_vgroup(const bContext *C, Panel *pa)
 
     UI_block_func_handle_set(block, do_view3d_vgroup_buttons, NULL);
 
-    bcol = uiLayoutColumn(pa->layout, true);
+    bcol = uiLayoutColumn(panel->layout, true);
     row = uiLayoutRow(bcol, true); /* The filter button row */
 
     RNA_pointer_create(NULL, &RNA_ToolSettings, ts, &tools_ptr);
@@ -1269,7 +1269,7 @@ static void view3d_panel_vgroup(const bContext *C, Panel *pa)
 
     yco -= 2;
 
-    col = uiLayoutColumn(pa->layout, true);
+    col = uiLayoutColumn(panel->layout, true);
     row = uiLayoutRow(col, true);
 
     ot = WM_operatortype_find("OBJECT_OT_vertex_weight_normalize_active_vertex", 1);
@@ -1555,7 +1555,7 @@ static bool view3d_panel_transform_poll(const bContext *C, PanelType *UNUSED(pt)
   return (view_layer->basact != NULL);
 }
 
-static void view3d_panel_transform(const bContext *C, Panel *pa)
+static void view3d_panel_transform(const bContext *C, Panel *panel)
 {
   uiBlock *block;
   ViewLayer *view_layer = CTX_data_view_layer(C);
@@ -1563,10 +1563,10 @@ static void view3d_panel_transform(const bContext *C, Panel *pa)
   Object *obedit = OBEDIT_FROM_OBACT(ob);
   uiLayout *col;
 
-  block = uiLayoutGetBlock(pa->layout);
+  block = uiLayoutGetBlock(panel->layout);
   UI_block_func_handle_set(block, do_view3d_region_buttons, NULL);
 
-  col = uiLayoutColumn(pa->layout, false);
+  col = uiLayoutColumn(panel->layout, false);
 
   if (ob == obedit) {
     if (ob->type == OB_ARMATURE) {
@@ -1577,9 +1577,7 @@ static void view3d_panel_transform(const bContext *C, Panel *pa)
     }
     else {
       View3D *v3d = CTX_wm_view3d(C);
-      Scene *scene = CTX_data_scene(C);
-      const float lim = 10000.0f * max_ff(1.0f, ED_view3d_grid_scale(scene, v3d, NULL));
-      v3d_editvertex_buts(col, v3d, ob, lim);
+      v3d_editvertex_buts(col, v3d, ob, FLT_MAX);
     }
   }
   else if (ob->mode & OB_MODE_POSE) {
@@ -1644,7 +1642,7 @@ static int view3d_object_mode_menu(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
   else if (((ob->mode & OB_MODE_EDIT) == 0) && (ELEM(ob->type, OB_ARMATURE))) {
-    ED_object_mode_toggle(C, OB_MODE_POSE);
+    ED_object_mode_set(C, (ob->mode == OB_MODE_OBJECT) ? OB_MODE_POSE : OB_MODE_OBJECT);
     return OPERATOR_CANCELLED;
   }
   else {

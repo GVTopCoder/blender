@@ -23,25 +23,25 @@
 
 #include <math.h>
 
+#include "BLI_jitter_2d.h"
 #include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_rect.h"
 #include "BLI_string.h"
 #include "BLI_string_utils.h"
 #include "BLI_threads.h"
-#include "BLI_jitter_2d.h"
 
 #include "BKE_camera.h"
 #include "BKE_collection.h"
 #include "BKE_context.h"
 #include "BKE_customdata.h"
 #include "BKE_global.h"
-#include "BKE_layer.h"
 #include "BKE_key.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
-#include "BKE_scene.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
+#include "BKE_scene.h"
 #include "BKE_studiolight.h"
 #include "BKE_unit.h"
 
@@ -62,8 +62,9 @@
 #include "DRW_select_buffer.h"
 
 #include "ED_armature.h"
-#include "ED_keyframing.h"
 #include "ED_gpencil.h"
+#include "ED_info.h"
+#include "ED_keyframing.h"
 #include "ED_screen.h"
 #include "ED_screen_types.h"
 #include "ED_transform.h"
@@ -74,13 +75,13 @@
 #include "GPU_batch.h"
 #include "GPU_batch_presets.h"
 #include "GPU_draw.h"
-#include "GPU_matrix.h"
+#include "GPU_framebuffer.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_material.h"
-#include "GPU_viewport.h"
+#include "GPU_matrix.h"
 #include "GPU_state.h"
-#include "GPU_framebuffer.h"
+#include "GPU_viewport.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -100,6 +101,8 @@
 #include "view3d_intern.h" /* own include */
 
 #define M_GOLDEN_RATIO_CONJUGATE 0.618033988749895f
+
+#define VIEW3D_OVERLAY_LINEHEIGHT (0.9f * U.widget_unit)
 
 /* -------------------------------------------------------------------- */
 /** \name General Functions
@@ -855,7 +858,7 @@ void ED_view3d_draw_depth(Depsgraph *depsgraph, ARegion *region, View3D *v3d, bo
   WM_draw_region_viewport_ensure(region, SPACE_VIEW3D);
   WM_draw_region_viewport_bind(region);
 
-  GPUViewport *viewport = WM_draw_region_get_viewport(region, 0);
+  GPUViewport *viewport = WM_draw_region_get_viewport(region);
   /* When Blender is starting, a click event can trigger a depth test while the viewport is not
    * yet available. */
   if (viewport != NULL) {
@@ -881,7 +884,7 @@ void ED_view3d_draw_depth(Depsgraph *depsgraph, ARegion *region, View3D *v3d, bo
 /* ******************** other elements ***************** */
 
 /** could move this elsewhere, but tied into #ED_view3d_grid_scale */
-float ED_scene_grid_scale(const Scene *scene, const char **grid_unit)
+float ED_scene_grid_scale(const Scene *scene, const char **r_grid_unit)
 {
   /* apply units */
   if (scene->unit.system) {
@@ -892,8 +895,8 @@ float ED_scene_grid_scale(const Scene *scene, const char **grid_unit)
 
     if (usys) {
       int i = bUnit_GetBaseUnit(usys);
-      if (grid_unit) {
-        *grid_unit = bUnit_GetNameDisplay(usys, i);
+      if (r_grid_unit) {
+        *r_grid_unit = bUnit_GetNameDisplay(usys, i);
       }
       return (float)bUnit_GetScaler(usys, i) / scene->unit.scale_length;
     }
@@ -902,9 +905,9 @@ float ED_scene_grid_scale(const Scene *scene, const char **grid_unit)
   return 1.0f;
 }
 
-float ED_view3d_grid_scale(const Scene *scene, View3D *v3d, const char **grid_unit)
+float ED_view3d_grid_scale(const Scene *scene, View3D *v3d, const char **r_grid_unit)
 {
-  return v3d->grid * ED_scene_grid_scale(scene, grid_unit);
+  return v3d->grid * ED_scene_grid_scale(scene, r_grid_unit);
 }
 
 #define STEPS_LEN 8
@@ -958,7 +961,7 @@ void ED_view3d_grid_steps(const Scene *scene,
 float ED_view3d_grid_view_scale(Scene *scene,
                                 View3D *v3d,
                                 RegionView3D *rv3d,
-                                const char **grid_unit)
+                                const char **r_grid_unit)
 {
   float grid_scale;
   if (!rv3d->is_persp && RV3D_VIEW_IS_AXIS(rv3d->view)) {
@@ -977,18 +980,18 @@ float ED_view3d_grid_view_scale(Scene *scene,
       }
     }
 
-    if (grid_unit) {
+    if (r_grid_unit) {
       const void *usys;
       int len;
       bUnit_GetSystem(scene->unit.system, B_UNIT_LENGTH, &usys, &len);
 
       if (usys) {
-        *grid_unit = bUnit_GetNameDisplay(usys, len - i - 1);
+        *r_grid_unit = bUnit_GetNameDisplay(usys, len - i - 1);
       }
     }
   }
   else {
-    grid_scale = ED_view3d_grid_scale(scene, v3d, grid_unit);
+    grid_scale = ED_view3d_grid_scale(scene, v3d, r_grid_unit);
   }
 
   return grid_scale;
@@ -1341,7 +1344,7 @@ static void draw_viewport_name(ARegion *region, View3D *v3d, int xoffset, int *y
 
   UI_FontThemeColor(BLF_default(), TH_TEXT_HI);
 
-  *yoffset -= U.widget_unit;
+  *yoffset -= VIEW3D_OVERLAY_LINEHEIGHT;
 
   BLF_draw_default(xoffset, *yoffset, 0.0f, name, sizeof(tmpstr));
 
@@ -1473,7 +1476,7 @@ static void draw_selected_name(
   BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
   BLF_shadow_offset(font_id, 1, -1);
 
-  *yoffset -= U.widget_unit;
+  *yoffset -= VIEW3D_OVERLAY_LINEHEIGHT;
   BLF_draw_default(xoffset, *yoffset, 0.0f, info, sizeof(info));
 
   BLF_disable(font_id, BLF_SHADOW);
@@ -1494,7 +1497,7 @@ static void draw_grid_unit_name(
         BLI_snprintf(numstr, sizeof(numstr), "%s x %.4g", grid_unit, v3d->grid);
       }
 
-      *yoffset -= U.widget_unit;
+      *yoffset -= VIEW3D_OVERLAY_LINEHEIGHT;
       BLF_enable(font_id, BLF_SHADOW);
       BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
       BLF_shadow_offset(font_id, 1, -1);
@@ -1515,6 +1518,8 @@ void view3d_draw_region_info(const bContext *C, ARegion *region)
   View3D *v3d = CTX_wm_view3d(C);
   Scene *scene = CTX_data_scene(C);
   wmWindowManager *wm = CTX_wm_manager(C);
+  Main *bmain = CTX_data_main(C);
+  ViewLayer *view_layer = CTX_data_view_layer(C);
 
 #ifdef WITH_INPUT_NDOF
   if ((U.ndof_flag & NDOF_SHOW_GUIDE) && ((RV3D_LOCK_FLAGS(rv3d) & RV3D_LOCK_ROTATION) == 0) &&
@@ -1550,8 +1555,8 @@ void view3d_draw_region_info(const bContext *C, ARegion *region)
     }
   }
 
-  int xoffset = rect->xmin + U.widget_unit;
-  int yoffset = rect->ymax;
+  int xoffset = rect->xmin + (0.5f * U.widget_unit);
+  int yoffset = rect->ymax - (0.1f * U.widget_unit);
 
   if ((v3d->flag2 & V3D_HIDE_OVERLAYS) == 0 && (v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) == 0) {
     if ((U.uiflag & USER_SHOW_FPS) && ED_screen_animation_no_scrub(wm)) {
@@ -1562,7 +1567,6 @@ void view3d_draw_region_info(const bContext *C, ARegion *region)
     }
 
     if (U.uiflag & USER_DRAWVIEWINFO) {
-      ViewLayer *view_layer = CTX_data_view_layer(C);
       Object *ob = OBACT(view_layer);
       draw_selected_name(scene, view_layer, ob, xoffset, &yoffset);
     }
@@ -1571,10 +1575,12 @@ void view3d_draw_region_info(const bContext *C, ARegion *region)
       /* draw below the viewport name */
       draw_grid_unit_name(scene, rv3d, v3d, xoffset, &yoffset);
     }
+
+    DRW_draw_region_engine_info(xoffset, &yoffset, VIEW3D_OVERLAY_LINEHEIGHT);
   }
 
-  if ((v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) == 0) {
-    DRW_draw_region_engine_info(xoffset, yoffset);
+  if ((v3d->flag2 & V3D_HIDE_OVERLAYS) == 0 && (v3d->overlay.flag & V3D_OVERLAY_STATS)) {
+    ED_info_draw_stats(bmain, scene, view_layer, xoffset, &yoffset, VIEW3D_OVERLAY_LINEHEIGHT);
   }
 
   BLF_batch_draw_end();
@@ -1882,7 +1888,7 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(Depsgraph *depsgraph,
 
   if (own_ofs) {
     /* bind */
-    ofs = GPU_offscreen_create(sizex, sizey, 0, true, false, err_out);
+    ofs = GPU_offscreen_create(sizex, sizey, true, false, err_out);
     if (ofs == NULL) {
       DRW_opengl_context_disable();
       return NULL;
@@ -2216,8 +2222,8 @@ void ED_view3d_backbuf_depth_validate(ViewContext *vc)
     Object *obact_eval = DEG_get_evaluated_object(vc->depsgraph, vc->obact);
 
     if (obact_eval && ((obact_eval->base_flag & BASE_VISIBLE_DEPSGRAPH) != 0)) {
-      GPUViewport *viewport = WM_draw_region_get_viewport(region, 0);
-      DRW_draw_depth_object(vc->region, vc->v3d, viewport, obact_eval);
+      GPUViewport *viewport = WM_draw_region_get_viewport(region);
+      DRW_draw_depth_object(vc->scene, vc->region, vc->v3d, viewport, obact_eval);
     }
 
     vc->v3d->flag &= ~V3D_INVALID_BACKBUF;
@@ -2279,7 +2285,7 @@ void view3d_update_depths_rect(ARegion *region, ViewDepths *d, rcti *rect)
   }
 
   if (d->damaged) {
-    GPUViewport *viewport = WM_draw_region_get_viewport(region, 0);
+    GPUViewport *viewport = WM_draw_region_get_viewport(region);
     view3d_opengl_read_Z_pixels(viewport, rect, d->depths);
     glGetDoublev(GL_DEPTH_RANGE, d->depth_range);
     d->damaged = false;
@@ -2308,7 +2314,7 @@ void ED_view3d_depth_update(ARegion *region)
     }
 
     if (d->damaged) {
-      GPUViewport *viewport = WM_draw_region_get_viewport(region, 0);
+      GPUViewport *viewport = WM_draw_region_get_viewport(region);
       rcti r = {
           .xmin = 0,
           .xmax = d->w,
@@ -2355,7 +2361,7 @@ void ED_view3d_draw_depth_gpencil(Depsgraph *depsgraph, Scene *scene, ARegion *r
 
   GPU_depth_test(true);
 
-  GPUViewport *viewport = WM_draw_region_get_viewport(region, 0);
+  GPUViewport *viewport = WM_draw_region_get_viewport(region);
   DRW_draw_depth_loop_gpencil(depsgraph, region, v3d, viewport);
 
   GPU_depth_test(false);
@@ -2370,7 +2376,7 @@ void ED_view3d_datamask(const bContext *C,
 {
   if (ELEM(v3d->shading.type, OB_TEXTURE, OB_MATERIAL, OB_RENDER)) {
     r_cddata_masks->lmask |= CD_MASK_MLOOPUV | CD_MASK_MLOOPCOL;
-    r_cddata_masks->vmask |= CD_MASK_ORCO;
+    r_cddata_masks->vmask |= CD_MASK_ORCO | CD_MASK_PROP_COLOR;
   }
   else if (v3d->shading.type == OB_SOLID) {
     if (v3d->shading.color_type == V3D_SHADING_TEXTURE_COLOR) {
@@ -2378,6 +2384,7 @@ void ED_view3d_datamask(const bContext *C,
     }
     if (v3d->shading.color_type == V3D_SHADING_VERTEX_COLOR) {
       r_cddata_masks->lmask |= CD_MASK_MLOOPCOL;
+      r_cddata_masks->vmask |= CD_MASK_ORCO | CD_MASK_PROP_COLOR;
     }
   }
 
@@ -2396,9 +2403,9 @@ void ED_view3d_screen_datamask(const bContext *C,
   CustomData_MeshMasks_update(r_cddata_masks, &CD_MASK_BAREMESH);
 
   /* Check if we need tfaces & mcols due to view mode. */
-  for (const ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-    if (sa->spacetype == SPACE_VIEW3D) {
-      ED_view3d_datamask(C, scene, sa->spacedata.first, r_cddata_masks);
+  LISTBASE_FOREACH (const ScrArea *, area, &screen->areabase) {
+    if (area->spacetype == SPACE_VIEW3D) {
+      ED_view3d_datamask(C, scene, area->spacedata.first, r_cddata_masks);
     }
   }
 }
@@ -2493,7 +2500,7 @@ void ED_scene_draw_fps(const Scene *scene, int xoffset, int *yoffset)
   BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
   BLF_shadow_offset(font_id, 1, -1);
 
-  *yoffset -= U.widget_unit;
+  *yoffset -= VIEW3D_OVERLAY_LINEHEIGHT;
 
 #ifdef WITH_INTERNATIONAL
   BLF_draw_default(xoffset, *yoffset, 0.0f, printable, sizeof(printable));

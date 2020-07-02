@@ -25,19 +25,17 @@
 
 #include "COLLADAFWUniqueId.h"
 
-extern "C" {
 #include "BKE_action.h"
-#include "BKE_object.h"
 #include "BKE_armature.h"
-#include "BLI_string.h"
+#include "BKE_object.h"
 #include "BLI_listbase.h"
+#include "BLI_string.h"
 #include "ED_armature.h"
-}
 
 #include "DEG_depsgraph.h"
 
-#include "collada_utils.h"
 #include "ArmatureImporter.h"
+#include "collada_utils.h"
 
 /* use node name, or fall back to original id if not present (name is optional) */
 template<class T> static const char *bc_get_joint_name(T *node)
@@ -335,7 +333,7 @@ void ArmatureImporter::connect_bone_chains(bArmature *armature, Bone *parentbone
       /*
        * It is possible that the child's head is located on the parents head.
        * When this happens, then moving the parent's tail to the child's head
-       * would result in a zero sized bone and Blender would  silently remove the bone.
+       * would result in a zero sized bone and Blender would silently remove the bone.
        * So we move the tail only when the resulting bone has a minimum length:
        */
 
@@ -551,8 +549,8 @@ Object *ArmatureImporter::create_armature_bones(Main *bmain, SkinInfo &skin)
    */
 
   /**
-   * Pseudocode:
-   *
+   * Pseudo-code:
+   * <pre>
    * find_node_in_tree(node, root_joint)
    *
    * skin::find_root_joints(root_joints):
@@ -575,6 +573,7 @@ Object *ArmatureImporter::create_armature_bones(Main *bmain, SkinInfo &skin)
    * }
    *
    * endloop:
+   * </pre>
    */
 
   SkinInfo *a = &skin;

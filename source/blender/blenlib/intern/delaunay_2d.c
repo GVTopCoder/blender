@@ -405,7 +405,8 @@ static CDTEdge *add_vert_to_symedge_edge(CDT_state *cdt, CDTVert *v, SymEdge *se
   return e;
 }
 
-/* Connect the verts of se1 and se2, assuming that currently those two SymEdges are on
+/**
+ * Connect the verts of se1 and se2, assuming that currently those two #SymEdges are on
  * the outer boundary (have face == outer_face) of two components that are isolated from
  * each other.
  */
@@ -479,7 +480,7 @@ static CDTEdge *split_edge(CDT_state *cdt, SymEdge *se, double lambda)
  * the deleted edge will be the one that was e's face.
  * There will be now an unused face, marked by setting its deleted flag,
  * and an unused #CDTEdge, marked by setting the next and rot pointers of
- * its SymEdges to NULL.
+ * its #SymEdge(s) to NULL.
  * <pre>
  *        .  v2               .
  *       / \                 / \
@@ -1017,7 +1018,9 @@ static void initial_triangulation(CDT_state *cdt)
   MEM_freeN(sites);
 }
 
-/** Use LinkNode linked list as stack of SymEdges, allocating from cdt->listpool. */
+/**
+ * Use #LinkNode linked list as stack of #SymEdges, allocating from `cdt->listpool` .
+ */
 typedef LinkNode *Stack;
 
 BLI_INLINE void push(Stack *stack, SymEdge *se, CDT_state *cdt)
@@ -1153,22 +1156,22 @@ static double tri_orient(const SymEdge *t)
  * in the path we will take to insert an edge constraint.
  * Each such point will either be
  * (a) a vertex or
- * (b) a fraction lambda (0 < lambda < 1) along some SymEdge.]
+ * (b) a fraction lambda (0 < lambda < 1) along some #SymEdge.]
  *
  * In general, lambda=0 indicates case a and lambda != 0 indicates case be.
  * The 'in' edge gives the destination attachment point of a diagonal from the previous crossing,
  * and the 'out' edge gives the origin attachment point of a diagonal to the next crossing.
  * But in some cases, 'in' and 'out' are undefined or not needed, and will be NULL.
  *
- * For case (a), 'vert' will be the vertex, and lambda will be 0, and 'in' will be the SymEdge from
- * 'vert' that has as face the one that you go through to get to this vertex. If you go exactly
- * along an edge then we set 'in' to NULL, since it won't be needed. The first crossing will have
- * 'in' = NULL. We set 'out' to the SymEdge that has the face we go though to get to the next
- * crossing, or, if the next crossing is a case (a), then it is the edge that goes to that next
- * vertex. 'out' wlll be NULL for the last one.
+ * For case (a), 'vert' will be the vertex, and lambda will be 0, and 'in' will be the #SymEdge
+ * from 'vert' that has as face the one that you go through to get to this vertex. If you go
+ * exactly along an edge then we set 'in' to NULL, since it won't be needed. The first crossing
+ * will have 'in' = NULL. We set 'out' to the #SymEdge that has the face we go though to get to the
+ * next crossing, or, if the next crossing is a case (a), then it is the edge that goes to that
+ * next vertex. 'out' wlll be NULL for the last one.
  *
  * For case (b), vert will be NULL at first, and later filled in with the created split vertex,
- * and 'in' will be the SymEdge that we go through, and lambda will be between 0 and 1,
+ * and 'in' will be the #SymEdge that we go through, and lambda will be between 0 and 1,
  * the fraction from in's vert to in->next's vert to put the split vertex.
  * 'out' is not needed in this case, since the attachment point will be the sym of the first
  * half of the split edge.
@@ -1231,8 +1234,8 @@ static void fill_crossdata_for_through_vert(CDTVert *v,
 
 /**
  * As part of finding crossings, we found a case where orient tests say that the next crossing
- * is on the SymEdge t, while intersecting with the ray from curco to v2.
- * Find the intersection point and fill in the CrossData for that point.
+ * is on the #SymEdge t, while intersecting with the ray from \a curco to \a v2.
+ * Find the intersection point and fill in the #CrossData for that point.
  * It may turn out that when doing the intersection, we get an answer that says that
  * this case is better handled as through-vertex case instead, so we may do that.
  * In the latter case, we want to avoid a situation where the current crossing is on an edge
@@ -1264,6 +1267,7 @@ static void fill_crossdata_for_intersect(CDT_state *cdt,
   se_vcva = t->next->next;
   BLI_assert(se_vcva->vert == vc && se_vcva->next->vert == va);
   BLI_assert(se_vcvb->vert == vc && se_vcvb->next->vert == vb);
+  UNUSED_VARS_NDEBUG(vc);
   isect = isect_seg_seg_v2_lambda_mu_db(va->co, vb->co, curco, v2->co, &lambda, &mu);
 #ifdef DEBUG_CDT
   if (dbg_level > 0) {
@@ -1441,12 +1445,12 @@ static bool get_next_crossing_from_vert(CDT_state *cdt,
 }
 
 /**
- * As part of finding the crossings of a ray to v2, find the next crossing after 'cd', assuming
+ * As part of finding the crossings of a ray to 'v2', find the next crossing after 'cd', assuming
  * 'cd' represents a crossing that goes through a an edge, not at either end of that edge.
  *
- * We have the triangle vb-va-vc, where va and vb are the split edge and vc is the third vertex on
- * that new side of the edge (should be closer to v2). The next crossing should be through vc or
- * intersecting vb-vc or va-vc.
+ * We have the triangle 'vb-va-vc', where va and vb are the split edge and 'vc' is the third vertex
+ * on that new side of the edge (should be closer to v2). The next crossing should be through 'vc'
+ * or intersecting 'vb-vc' or 'va-vc'.
  */
 static void get_next_crossing_from_edge(CDT_state *cdt,
                                         CrossData *cd,
@@ -1992,25 +1996,25 @@ typedef struct EdgeVertLambda {
 /* For sorting first by edge id, then by lambda, then by vert id. */
 static int evl_cmp(const void *a, const void *b)
 {
-  const EdgeVertLambda *sa = a;
+  const EdgeVertLambda *area = a;
   const EdgeVertLambda *sb = b;
 
-  if (sa->e_id < sb->e_id) {
+  if (area->e_id < sb->e_id) {
     return -1;
   }
-  else if (sa->e_id > sb->e_id) {
+  else if (area->e_id > sb->e_id) {
     return 1;
   }
-  else if (sa->lambda < sb->lambda) {
+  else if (area->lambda < sb->lambda) {
     return -1;
   }
-  else if (sa->lambda > sb->lambda) {
+  else if (area->lambda > sb->lambda) {
     return 1;
   }
-  else if (sa->v_id < sb->v_id) {
+  else if (area->v_id < sb->v_id) {
     return -1;
   }
-  else if (sa->v_id > sb->v_id) {
+  else if (area->v_id > sb->v_id) {
     return 1;
   }
   return 0;

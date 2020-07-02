@@ -71,22 +71,22 @@ const EnumPropertyItem rna_enum_ramp_blend_items[] = {
 
 #  include "BKE_colorband.h"
 #  include "BKE_context.h"
-#  include "BKE_main.h"
 #  include "BKE_gpencil.h"
+#  include "BKE_main.h"
 #  include "BKE_material.h"
-#  include "BKE_texture.h"
 #  include "BKE_node.h"
 #  include "BKE_paint.h"
 #  include "BKE_scene.h"
+#  include "BKE_texture.h"
 #  include "BKE_workspace.h"
 
 #  include "DEG_depsgraph.h"
 #  include "DEG_depsgraph_build.h"
 
-#  include "ED_node.h"
-#  include "ED_image.h"
-#  include "ED_screen.h"
 #  include "ED_gpencil.h"
+#  include "ED_image.h"
+#  include "ED_node.h"
+#  include "ED_screen.h"
 
 static void rna_Material_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
@@ -144,7 +144,7 @@ static void rna_Material_active_paint_texture_index_update(Main *bmain,
                                                            Scene *UNUSED(scene),
                                                            PointerRNA *ptr)
 {
-  bScreen *sc;
+  bScreen *screen;
   Material *ma = (Material *)ptr->owner_id;
 
   if (ma->use_nodes && ma->nodetree) {
@@ -157,8 +157,8 @@ static void rna_Material_active_paint_texture_index_update(Main *bmain,
 
   if (ma->texpaintslot) {
     Image *image = ma->texpaintslot[ma->paint_active_slot].ima;
-    for (sc = bmain->screens.first; sc; sc = sc->id.next) {
-      wmWindow *win = ED_screen_window_find(sc, bmain->wm.first);
+    for (screen = bmain->screens.first; screen; screen = screen->id.next) {
+      wmWindow *win = ED_screen_window_find(screen, bmain->wm.first);
       if (win == NULL) {
         continue;
       }
@@ -169,10 +169,10 @@ static void rna_Material_active_paint_texture_index_update(Main *bmain,
         obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
       }
 
-      ScrArea *sa;
-      for (sa = sc->areabase.first; sa; sa = sa->next) {
+      ScrArea *area;
+      for (area = screen->areabase.first; area; area = area->next) {
         SpaceLink *sl;
-        for (sl = sa->spacedata.first; sl; sl = sl->next) {
+        for (sl = area->spacedata.first; sl; sl = sl->next) {
           if (sl->spacetype == SPACE_IMAGE) {
             SpaceImage *sima = (SpaceImage *)sl;
             if (!sima->pin) {
@@ -520,13 +520,6 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
   RNA_def_property_ui_text(prop, "Offset", "Shift Texture in 2d Space");
   RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
-  /* Texture opacity size */
-  prop = RNA_def_property(srna, "texture_opacity", PROP_FLOAT, PROP_NONE);
-  RNA_def_property_float_sdna(prop, NULL, "texture_opacity");
-  RNA_def_property_range(prop, 0.0f, 1.0f);
-  RNA_def_property_ui_text(prop, "Opacity", "Texture Opacity");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
-
   /* texture pixsize factor (used for UV along the stroke) */
   prop = RNA_def_property(srna, "pixel_size", PROP_FLOAT, PROP_NONE);
   RNA_def_property_float_sdna(prop, NULL, "texture_pixsize");
@@ -549,7 +542,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
   prop = RNA_def_property(srna, "ghost", PROP_BOOLEAN, PROP_NONE);
-  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MATERIAL_ONIONSKIN);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MATERIAL_HIDE_ONIONSKIN);
   RNA_def_property_ui_icon(prop, ICON_GHOST_ENABLED, 0);
   RNA_def_property_ui_text(
       prop, "Show in Ghosts", "Display strokes using this color when showing onion skins");
@@ -791,6 +784,7 @@ void RNA_def_material(BlenderRNA *brna)
   /* nodetree */
   prop = RNA_def_property(srna, "node_tree", PROP_POINTER, PROP_NONE);
   RNA_def_property_pointer_sdna(prop, NULL, "nodetree");
+  RNA_def_property_clear_flag(prop, PROP_PTR_NO_OWNERSHIP);
   RNA_def_property_ui_text(prop, "Node Tree", "Node tree for node based materials");
 
   prop = RNA_def_property(srna, "use_nodes", PROP_BOOLEAN, PROP_NONE);

@@ -25,8 +25,8 @@
 #include <string.h>
 
 #ifdef WIN32
-#  include <windows.h>
 #  include "utfconv.h"
+#  include <windows.h>
 #endif
 
 #if defined(WITH_TBB_MALLOC) && defined(_MSC_VER) && defined(NDEBUG)
@@ -41,10 +41,11 @@
 #include "DNA_genfile.h"
 
 #include "BLI_args.h"
-#include "BLI_threads.h"
-#include "BLI_utildefines.h"
 #include "BLI_string.h"
 #include "BLI_system.h"
+#include "BLI_task.h"
+#include "BLI_threads.h"
+#include "BLI_utildefines.h"
 
 /* mostly init functions */
 #include "BKE_appdir.h"
@@ -55,15 +56,15 @@
 #include "BKE_context.h"
 #include "BKE_font.h"
 #include "BKE_global.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_idtype.h"
+#include "BKE_image.h"
 #include "BKE_material.h"
 #include "BKE_modifier.h"
-#include "BKE_gpencil_modifier.h"
 #include "BKE_node.h"
+#include "BKE_particle.h"
 #include "BKE_shader_fx.h"
 #include "BKE_sound.h"
-#include "BKE_image.h"
-#include "BKE_particle.h"
 #include "BKE_volume.h"
 
 #include "DEG_depsgraph.h"
@@ -108,7 +109,7 @@
 
 #include "creator_intern.h" /* own include */
 
-/*  Local Function prototypes */
+/* Local Function prototypes. */
 #ifdef WITH_PYTHON_MODULE
 int main_python_enter(int argc, const char **argv);
 void main_python_exit(void);
@@ -124,7 +125,7 @@ void main_python_exit(void);
  * patched USD (see usd.diff) to avoid that particular static constructor, and have an
  * initialization function instead.
  *
- * This function is implemented in the USD source code, pxr/base/lib/plug/initConfig.cpp.
+ * This function is implemented in the USD source code, `pxr/base/lib/plug/initConfig.cpp`.
  */
 void usd_initialise_plugin_path(const char *datafiles_usd_path);
 #endif
@@ -157,7 +158,7 @@ static void callback_mem_error(const char *errorStr)
 
 static void main_callback_setup(void)
 {
-  /* Error output from the alloc routines: */
+  /* Error output from the guarded allocation routines. */
   MEM_set_error_callback(callback_mem_error);
 }
 
@@ -207,7 +208,7 @@ static void callback_clg_fatal(void *fp)
 static void *evil_C = NULL;
 
 #  ifdef __APPLE__
-/* environ is not available in mac shared libraries */
+/* Environment is not available in macOS shared libraries. */
 #    include <crt_externs.h>
 char **environ = NULL;
 #  endif
@@ -245,20 +246,24 @@ int main(int argc,
   struct CreatorAtExitData app_init_data = {NULL};
   BKE_blender_atexit_register(callback_main_atexit, &app_init_data);
 
-  /* Unbuffered stdout makes stdout and stderr better synchronized, and helps
+  /* Un-buffered `stdout` makes `stdout` and `stderr` better synchronized, and helps
    * when stepping through code in a debugger (prints are immediately
-   * visible). */
+   * visible). However disabling buffering causes lock contention on windows
+   * see T76767 for details, since this is a debugging aid, we do not enable
+   * the un-buffered behavior for release builds. */
+#ifndef NDEBUG
   setvbuf(stdout, NULL, _IONBF, 0);
+#endif
 
 #ifdef WIN32
-  /* We delay loading of openmp so we can set the policy here. */
+  /* We delay loading of OPENMP so we can set the policy here. */
 #  if defined(_MSC_VER)
   _putenv_s("OMP_WAIT_POLICY", "PASSIVE");
 #  endif
 
-  /* Win32 Unicode Args */
+  /* Win32 Unicode Arguments. */
   /* NOTE: cannot use guardedalloc malloc here, as it's not yet initialized
-   *       (it depends on the args passed in, which is what we're getting here!)
+   *       (it depends on the arguments passed in, which is what we're getting here!)
    */
   {
     wchar_t **argv_16 = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -339,8 +344,8 @@ int main(int argc,
 
   main_callback_setup();
 
-#if defined(__APPLE__) && !defined(WITH_PYTHON_MODULE)
-  /* patch to ignore argument finder gives us (pid?) */
+#if defined(__APPLE__) && !defined(WITH_PYTHON_MODULE) && !defined(WITH_HEADLESS)
+  /* Patch to ignore argument finder gives us (PID?) */
   if (argc == 2 && STREQLEN(argv[1], "-psn_", 5)) {
     extern int GHOST_HACK_getFirstFile(char buf[]);
     static char firstfilebuf[512];
@@ -401,6 +406,9 @@ int main(int argc,
   G.factory_startup = true;
 #endif
 
+  /* After parsing number of threads argument. */
+  BLI_task_scheduler_init();
+
 #ifdef WITH_FFMPEG
   IMB_ffmpeg_init();
 #endif
@@ -411,7 +419,7 @@ int main(int argc,
   RE_engines_init();
   init_nodesystem();
   psys_init_rng();
-  /* end second init */
+  /* End second initialization. */
 
 #if defined(WITH_PYTHON_MODULE) || defined(WITH_HEADLESS)
   /* Python module mode ALWAYS runs in background-mode (for now). */
@@ -467,7 +475,7 @@ int main(int argc,
    * #WM_init() before #BPY_python_start() crashes Blender at startup.
    */
 
-  /* TODO - U.pythondir */
+  /* TODO: #U.pythondir */
 #else
   printf(
       "\n* WARNING * - Blender compiled without Python!\n"
@@ -524,7 +532,7 @@ int main(int argc,
   WM_main(C);
 
   return 0;
-} /* end of int main(argc, argv) */
+} /* End of int main(...) function. */
 
 #ifdef WITH_PYTHON_MODULE
 void main_python_exit(void)

@@ -18,13 +18,13 @@
  * \ingroup RNA
  */
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "DNA_ID.h"
-#include "DNA_vfont_types.h"
 #include "DNA_material_types.h"
 #include "DNA_object_types.h"
+#include "DNA_vfont_types.h"
 
 #include "BLI_utildefines.h"
 
@@ -71,14 +71,13 @@ const EnumPropertyItem rna_enum_id_type_items[] = {
     {ID_PA, "PARTICLE", ICON_PARTICLE_DATA, "Particle", ""},
     {ID_LP, "LIGHT_PROBE", ICON_LIGHTPROBE_CUBEMAP, "Light Probe", ""},
     {ID_SCE, "SCENE", ICON_SCENE_DATA, "Scene", ""},
+    {ID_SIM, "SIMULATION", ICON_PHYSICS, "Simulation", ""}, /* TODO: Use correct icon. */
     {ID_SO, "SOUND", ICON_SOUND, "Sound", ""},
     {ID_SPK, "SPEAKER", ICON_SPEAKER, "Speaker", ""},
     {ID_TXT, "TEXT", ICON_TEXT, "Text", ""},
     {ID_TE, "TEXTURE", ICON_TEXTURE_DATA, "Texture", ""},
-#ifdef WITH_NEW_OBJECT_TYPES
     {ID_HA, "HAIR", ICON_HAIR_DATA, "Hair", ""},
     {ID_PT, "POINTCLOUD", ICON_POINTCLOUD_DATA, "PointCloud", ""},
-#endif
     {ID_VO, "VOLUME", ICON_VOLUME_DATA, "Volume", ""},
     {ID_WM, "WINDOWMANAGER", ICON_WINDOW, "Window Manager", ""},
     {ID_WO, "WORLD", ICON_WORLD_DATA, "World", ""},
@@ -93,15 +92,15 @@ const EnumPropertyItem rna_enum_id_type_items[] = {
 #  include "BLI_listbase.h"
 #  include "BLI_math_base.h"
 
+#  include "BKE_anim_data.h"
 #  include "BKE_font.h"
+#  include "BKE_global.h" /* XXX, remove me */
 #  include "BKE_idprop.h"
-#  include "BKE_lib_query.h"
 #  include "BKE_lib_override.h"
+#  include "BKE_lib_query.h"
 #  include "BKE_lib_remap.h"
 #  include "BKE_library.h"
-#  include "BKE_animsys.h"
 #  include "BKE_material.h"
-#  include "BKE_global.h" /* XXX, remove me */
 
 #  include "DEG_depsgraph.h"
 #  include "DEG_depsgraph_build.h"
@@ -181,14 +180,14 @@ static int rna_ID_name_editable(PointerRNA *ptr, const char **UNUSED(r_info))
 void rna_ID_name_full_get(PointerRNA *ptr, char *value)
 {
   ID *id = (ID *)ptr->data;
-  BKE_id_full_name_get(value, id);
+  BKE_id_full_name_get(value, id, 0);
 }
 
 int rna_ID_name_full_length(PointerRNA *ptr)
 {
   ID *id = (ID *)ptr->data;
   char name[MAX_ID_FULL_NAME];
-  BKE_id_full_name_get(name, id);
+  BKE_id_full_name_get(name, id, 0);
   return strlen(name);
 }
 
@@ -251,11 +250,9 @@ short RNA_type_to_ID_code(const StructRNA *type)
   if (base_type == &RNA_FreestyleLineStyle) {
     return ID_LS;
   }
-#  ifdef WITH_NEW_OBJECT_TYPES
   if (base_type == &RNA_Hair) {
     return ID_HA;
   }
-#  endif
   if (base_type == &RNA_Lattice) {
     return ID_LT;
   }
@@ -289,11 +286,9 @@ short RNA_type_to_ID_code(const StructRNA *type)
   if (base_type == &RNA_PaintCurve) {
     return ID_PC;
   }
-#  ifdef WITH_NEW_OBJECT_TYPES
   if (base_type == &RNA_PointCloud) {
     return ID_PT;
   }
-#  endif
   if (base_type == &RNA_LightProbe) {
     return ID_LP;
   }
@@ -302,6 +297,9 @@ short RNA_type_to_ID_code(const StructRNA *type)
   }
   if (base_type == &RNA_Screen) {
     return ID_SCR;
+  }
+  if (base_type == &RNA_Simulation) {
+    return ID_SIM;
   }
   if (base_type == &RNA_Sound) {
     return ID_SO;
@@ -356,11 +354,7 @@ StructRNA *ID_code_to_RNA_type(short idcode)
     case ID_GR:
       return &RNA_Collection;
     case ID_HA:
-#  ifdef WITH_NEW_OBJECT_TYPES
       return &RNA_Hair;
-#  else
-      return &RNA_ID;
-#  endif
     case ID_IM:
       return &RNA_Image;
     case ID_KE:
@@ -394,17 +388,15 @@ StructRNA *ID_code_to_RNA_type(short idcode)
     case ID_PC:
       return &RNA_PaintCurve;
     case ID_PT:
-#  ifdef WITH_NEW_OBJECT_TYPES
       return &RNA_PointCloud;
-#  else
-      return &RNA_ID;
-#  endif
     case ID_LP:
       return &RNA_LightProbe;
     case ID_SCE:
       return &RNA_Scene;
     case ID_SCR:
       return &RNA_Screen;
+    case ID_SIM:
+      return &RNA_Simulation;
     case ID_SO:
       return &RNA_Sound;
     case ID_SPK:
@@ -1407,7 +1399,6 @@ static void rna_def_ID_override_library_property(BlenderRNA *brna)
 static void rna_def_ID_override_library(BlenderRNA *brna)
 {
   StructRNA *srna;
-  PropertyRNA *prop;
 
   srna = RNA_def_struct(brna, "IDOverrideLibrary", NULL);
   RNA_def_struct_ui_text(
@@ -1415,14 +1406,6 @@ static void rna_def_ID_override_library(BlenderRNA *brna)
 
   RNA_def_pointer(
       srna, "reference", "ID", "Reference ID", "Linked ID used as reference by this override");
-
-  prop = RNA_def_boolean(
-      srna,
-      "auto_generate",
-      true,
-      "Auto Generate Override",
-      "Automatically generate overriding operations by detecting changes in properties");
-  RNA_def_property_boolean_sdna(prop, NULL, "flag", OVERRIDE_LIBRARY_AUTO);
 
   RNA_def_collection(srna,
                      "properties",
@@ -1462,6 +1445,7 @@ static void rna_def_ID(BlenderRNA *brna)
   RNA_def_property_string_maxlength(prop, MAX_ID_NAME - 2);
   RNA_def_property_editable_func(prop, "rna_ID_name_editable");
   RNA_def_property_update(prop, NC_ID | NA_RENAME, NULL);
+  RNA_def_property_override_flag(prop, PROPOVERRIDE_IGNORE);
   RNA_def_struct_name_property(srna, prop);
 
   prop = RNA_def_property(srna, "name_full", PROP_STRING, PROP_NONE);
@@ -1506,7 +1490,7 @@ static void rna_def_ID(BlenderRNA *brna)
   RNA_def_property_ui_text(
       prop,
       "Embedded Data",
-      "This data-block is not an independant one, but is actually a sub-data of another ID "
+      "This data-block is not an independent one, but is actually a sub-data of another ID "
       "(typical example: root node trees or master collections)");
 
   prop = RNA_def_property(srna, "tag", PROP_BOOLEAN, PROP_NONE);
@@ -1539,6 +1523,7 @@ static void rna_def_ID(BlenderRNA *brna)
       "Preview",
       "Preview image and icon of this data-block (None if not supported for this type of data)");
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_override_flag(prop, PROPOVERRIDE_NO_COMPARISON);
   RNA_def_property_pointer_funcs(prop, "rna_IDPreview_get", NULL, NULL, NULL);
 
   /* functions */
@@ -1650,7 +1635,7 @@ static void rna_def_library(BlenderRNA *brna)
   RNA_def_struct_ui_icon(srna, ICON_LIBRARY_DATA_DIRECT);
 
   prop = RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
-  RNA_def_property_string_sdna(prop, NULL, "name");
+  RNA_def_property_string_sdna(prop, NULL, "filepath");
   RNA_def_property_ui_text(prop, "File Path", "Path to the library .blend file");
   RNA_def_property_string_funcs(prop, NULL, NULL, "rna_Library_filepath_set");
 

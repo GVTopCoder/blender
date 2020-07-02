@@ -21,11 +21,11 @@
  * \ingroup edcurve
  */
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
 #include <wchar.h>
-#include <errno.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -36,9 +36,9 @@
 
 #include "DNA_curve_types.h"
 #include "DNA_object_types.h"
-#include "DNA_vfont_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_text_types.h"
+#include "DNA_vfont_types.h"
 
 #include "BKE_context.h"
 #include "BKE_curve.h"
@@ -76,7 +76,7 @@ static int kill_selection(Object *obedit, int ins);
 /** \name Internal Utilities
  * \{ */
 
-static wchar_t findaccent(wchar_t char1, unsigned int code)
+static wchar_t findaccent(wchar_t char1, uint code)
 {
   wchar_t new = 0;
 
@@ -1635,7 +1635,7 @@ static int insert_text_exec(bContext *C, wmOperator *op)
 {
   Object *obedit = CTX_data_edit_object(C);
   char *inserted_utf8;
-  wchar_t *inserted_text;
+  char32_t *inserted_text;
   int a, len;
 
   if (!RNA_struct_property_is_set(op->ptr, "text")) {
@@ -1645,8 +1645,8 @@ static int insert_text_exec(bContext *C, wmOperator *op)
   inserted_utf8 = RNA_string_get_alloc(op->ptr, "text", NULL, 0);
   len = BLI_strlen_utf8(inserted_utf8);
 
-  inserted_text = MEM_callocN(sizeof(wchar_t) * (len + 1), "FONT_insert_text");
-  BLI_strncpy_wchar_from_utf8(inserted_text, inserted_utf8, len + 1);
+  inserted_text = MEM_callocN(sizeof(char32_t) * (len + 1), "FONT_insert_text");
+  len = BLI_str_utf8_as_utf32(inserted_text, inserted_utf8, MAXTEXT);
 
   for (a = 0; a < len; a++) {
     insert_into_textbuf(obedit, inserted_text[a]);
@@ -2133,7 +2133,7 @@ static int open_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event)
     vfont = (VFont *)idptr.owner_id;
   }
 
-  path = (vfont && !BKE_vfont_is_builtin(vfont)) ? vfont->name : U.fontdir;
+  path = (vfont && !BKE_vfont_is_builtin(vfont)) ? vfont->filepath : U.fontdir;
 
   if (RNA_struct_property_is_set(op->ptr, "filepath")) {
     return font_open_exec(C, op);

@@ -20,8 +20,8 @@
  */
 
 #ifdef WITH_FFMPEG
-#  include <string.h>
 #  include <stdio.h>
+#  include <string.h>
 
 #  include <stdlib.h>
 
@@ -52,8 +52,8 @@
 
 /* This needs to be included after BLI_math_base.h otherwise it will redefine some math defines
  * like M_SQRT1_2 leading to warnings with MSVC */
-#  include <libavformat/avformat.h>
 #  include <libavcodec/avcodec.h>
+#  include <libavformat/avformat.h>
 #  include <libavutil/imgutils.h>
 #  include <libavutil/rational.h>
 #  include <libavutil/samplefmt.h>
@@ -606,7 +606,10 @@ static AVStream *alloc_video_stream(FFMpegContext *context,
   c->gop_size = context->ffmpeg_gop_size;
   c->max_b_frames = context->ffmpeg_max_b_frames;
 
-  if (context->ffmpeg_crf >= 0) {
+  if (context->ffmpeg_type == FFMPEG_WEBM && context->ffmpeg_crf == 0) {
+    ffmpeg_dict_set_int(&opts, "lossless", 1);
+  }
+  else if (context->ffmpeg_crf >= 0) {
     ffmpeg_dict_set_int(&opts, "crf", context->ffmpeg_crf);
   }
   else {

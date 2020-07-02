@@ -21,16 +21,16 @@
  * \ingroup bke
  */
 
-#include <string.h>
-#include <math.h>
 #include <ctype.h>
-#include <stdlib.h>
+#include <math.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_meshdata_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
@@ -486,14 +486,14 @@ void BKE_defvert_flip_merged(MDeformVert *dvert, const int *flip_map, const int 
   }
 }
 
-bDeformGroup *BKE_object_defgroup_find_name(Object *ob, const char *name)
+bDeformGroup *BKE_object_defgroup_find_name(const Object *ob, const char *name)
 {
   return (name && name[0] != '\0') ?
              BLI_findstring(&ob->defbase, name, offsetof(bDeformGroup, name)) :
              NULL;
 }
 
-int BKE_object_defgroup_name_index(Object *ob, const char *name)
+int BKE_object_defgroup_name_index(const Object *ob, const char *name)
 {
   return (name && name[0] != '\0') ?
              BLI_findstringindex(&ob->defbase, name, offsetof(bDeformGroup, name)) :
@@ -503,7 +503,7 @@ int BKE_object_defgroup_name_index(Object *ob, const char *name)
 /**
  * \note caller must free.
  */
-int *BKE_object_defgroup_flip_map(Object *ob, int *flip_map_len, const bool use_default)
+int *BKE_object_defgroup_flip_map(const Object *ob, int *flip_map_len, const bool use_default)
 {
   int defbase_tot = *flip_map_len = BLI_listbase_count(&ob->defbase);
 
@@ -545,7 +545,7 @@ int *BKE_object_defgroup_flip_map(Object *ob, int *flip_map_len, const bool use_
 /**
  * \note caller must free.
  */
-int *BKE_object_defgroup_flip_map_single(Object *ob,
+int *BKE_object_defgroup_flip_map_single(const Object *ob,
                                          int *flip_map_len,
                                          const bool use_default,
                                          int defgroup)
@@ -580,7 +580,7 @@ int *BKE_object_defgroup_flip_map_single(Object *ob,
   }
 }
 
-int BKE_object_defgroup_flip_index(Object *ob, int index, const bool use_default)
+int BKE_object_defgroup_flip_index(const Object *ob, int index, const bool use_default)
 {
   bDeformGroup *dg = BLI_findlink(&ob->defbase, index);
   int flip_index = -1;
@@ -888,7 +888,7 @@ float BKE_defvert_multipaint_collective_weight(const struct MDeformVert *dv,
 /**
  * Computes the display weight for the lock relative weight paint mode.
  *
- * @return weight divided by 1-locked_weight with division by zero check
+ * \return weight divided by 1-locked_weight with division by zero check
  */
 float BKE_defvert_calc_lock_relative_weight(float weight,
                                             float locked_weight,
@@ -922,7 +922,7 @@ float BKE_defvert_calc_lock_relative_weight(float weight,
 /**
  * Computes the display weight for the lock relative weight paint mode, using weight data.
  *
- * @return weight divided by unlocked, or 1-locked_weight with division by zero check
+ * \return weight divided by unlocked, or 1-locked_weight with division by zero check.
  */
 float BKE_defvert_lock_relative_weight(float weight,
                                        const struct MDeformVert *dv,

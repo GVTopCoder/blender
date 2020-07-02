@@ -21,11 +21,11 @@
  * \ingroup spscript
  */
 
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
-#include "BLI_utildefines.h"
 #include "BLI_listbase.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_context.h"
 #include "BKE_report.h"
@@ -92,7 +92,7 @@ static bool script_test_modal_operators(bContext *C)
         wmEventHandler_Op *handler = (wmEventHandler_Op *)handler_base;
         if (handler->op != NULL) {
           wmOperatorType *ot = handler->op->type;
-          if (ot->ext.srna) {
+          if (ot->rna_ext.srna) {
             return true;
           }
         }

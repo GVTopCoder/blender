@@ -24,42 +24,42 @@
 #include <stdlib.h> /* malloc */
 #include <string.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <errno.h>
 
 #include "zlib.h"
 
 #ifdef WIN32
-#  include <windows.h>
-#  include <shellapi.h>
-#  include <shobjidl.h>
-#  include <io.h>
-#  include "BLI_winstuff.h"
 #  include "BLI_fileops_types.h"
+#  include "BLI_winstuff.h"
 #  include "utf_winfunc.h"
 #  include "utfconv.h"
+#  include <io.h>
+#  include <shellapi.h>
+#  include <shobjidl.h>
+#  include <windows.h>
 #else
 #  if defined(__APPLE__)
 #    include <CoreFoundation/CoreFoundation.h>
-#    include <objc/runtime.h>
 #    include <objc/message.h>
+#    include <objc/runtime.h>
 #  endif
-#  include <sys/param.h>
 #  include <dirent.h>
-#  include <unistd.h>
+#  include <sys/param.h>
 #  include <sys/wait.h>
+#  include <unistd.h>
 #endif
 
 #include "MEM_guardedalloc.h"
 
-#include "BLI_utildefines.h"
-#include "BLI_string.h"
-#include "BLI_path_util.h"
 #include "BLI_fileops.h"
+#include "BLI_path_util.h"
+#include "BLI_string.h"
 #include "BLI_sys_types.h"  // for intptr_t support
+#include "BLI_utildefines.h"
 
 #if 0 /* UNUSED */
 /* gzip the file in from and write it to "to".
@@ -492,7 +492,7 @@ static bool delete_recursive(const char *dir)
 
       /* dir listing produces dir path without trailing slash... */
       BLI_strncpy(path, fl->path, sizeof(path));
-      BLI_add_slash(path);
+      BLI_path_slash_ensure(path);
 
       if (delete_recursive(path)) {
         err = true;
@@ -562,9 +562,9 @@ int BLI_move(const char *file, const char *to)
 
   BLI_strncpy(str, to, sizeof(str));
   /* points 'to' to a directory ? */
-  if (BLI_last_slash(str) == (str + strlen(str) - 1)) {
-    if (BLI_last_slash(file) != NULL) {
-      strcat(str, BLI_last_slash(file) + 1);
+  if (BLI_path_slash_rfind(str) == (str + strlen(str) - 1)) {
+    if (BLI_path_slash_rfind(file) != NULL) {
+      strcat(str, BLI_path_slash_rfind(file) + 1);
     }
   }
 
@@ -594,9 +594,9 @@ int BLI_copy(const char *file, const char *to)
 
   BLI_strncpy(str, to, sizeof(str));
   /* points 'to' to a directory ? */
-  if (BLI_last_slash(str) == (str + strlen(str) - 1)) {
-    if (BLI_last_slash(file) != NULL) {
-      strcat(str, BLI_last_slash(file) + 1);
+  if (BLI_path_slash_rfind(str) == (str + strlen(str) - 1)) {
+    if (BLI_path_slash_rfind(file) != NULL) {
+      strcat(str, BLI_path_slash_rfind(file) + 1);
     }
   }
 
@@ -638,7 +638,7 @@ bool BLI_dir_create_recursive(const char *dirname)
    * blah1/blah2 (without slash) */
 
   BLI_strncpy(tmp, dirname, sizeof(tmp));
-  BLI_del_slash(tmp);
+  BLI_path_slash_rstrip(tmp);
 
   /* check special case "c:\foo", don't try create "c:", harmless but prints an error below */
   if (isalpha(tmp[0]) && (tmp[1] == ':') && tmp[2] == '\0') {
@@ -652,7 +652,7 @@ bool BLI_dir_create_recursive(const char *dirname)
     return false;
   }
 
-  lslash = (char *)BLI_last_slash(tmp);
+  lslash = (char *)BLI_path_slash_rfind(tmp);
 
   if (lslash) {
     /* Split about the last slash and recurse */
@@ -723,7 +723,7 @@ static void join_dirfile_alloc(char **dst, size_t *alloc_len, const char *dir, c
 static char *strip_last_slash(const char *dir)
 {
   char *result = BLI_strdup(dir);
-  BLI_del_slash(result);
+  BLI_path_slash_rstrip(result);
 
   return result;
 }
@@ -1277,7 +1277,7 @@ static const char *check_destination(const char *file, const char *to)
       size_t len = 0;
 
       str = strip_last_slash(file);
-      filename = BLI_last_slash(str);
+      filename = BLI_path_slash_rfind(str);
 
       if (!filename) {
         MEM_freeN(str);
@@ -1350,9 +1350,9 @@ bool BLI_dir_create_recursive(const char *dirname)
   BLI_strncpy(tmp, dirname, size);
 
   /* Avoids one useless recursion in case of '/foo/bar/' path... */
-  BLI_del_slash(tmp);
+  BLI_path_slash_rstrip(tmp);
 
-  lslash = (char *)BLI_last_slash(tmp);
+  lslash = (char *)BLI_path_slash_rfind(tmp);
   if (lslash) {
     /* Split about the last slash and recurse */
     *lslash = 0;

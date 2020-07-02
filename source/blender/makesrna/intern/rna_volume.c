@@ -1,6 +1,4 @@
 /*
- * ***** BEGIN GPL LICENSE BLOCK *****
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
@@ -14,14 +12,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * Contributor(s): Jörg Müller.
- *
- * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/makesrna/intern/rna_volume.c
- *  \ingroup RNA
+/** \file
+ * \ingroup RNA
  */
 
 #include <stdlib.h>
@@ -44,8 +38,8 @@
 #  include "DEG_depsgraph.h"
 #  include "DEG_depsgraph_build.h"
 
-#  include "WM_types.h"
 #  include "WM_api.h"
+#  include "WM_types.h"
 
 /* Updates */
 
@@ -200,6 +194,19 @@ static int rna_VolumeGrids_error_message_length(PointerRNA *ptr)
   return strlen(BKE_volume_grids_error_msg(volume));
 }
 
+/* Frame Filepath */
+static void rna_VolumeGrids_frame_filepath_get(PointerRNA *ptr, char *value)
+{
+  Volume *volume = (Volume *)ptr->data;
+  strcpy(value, BKE_volume_grids_frame_filepath(volume));
+}
+
+static int rna_VolumeGrids_frame_filepath_length(PointerRNA *ptr)
+{
+  Volume *volume = (Volume *)ptr->data;
+  return strlen(BKE_volume_grids_frame_filepath(volume));
+}
+
 #else
 
 static void rna_def_volume_grid(BlenderRNA *brna)
@@ -314,6 +321,16 @@ static void rna_def_volume_grids(BlenderRNA *brna, PropertyRNA *cprop)
                            "Frame number that volume grids will be loaded at, based on scene time "
                            "and volume parameters");
 
+  prop = RNA_def_property(srna, "frame_filepath", PROP_STRING, PROP_FILEPATH);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_string_funcs(
+      prop, "rna_VolumeGrids_frame_filepath_get", "rna_VolumeGrids_frame_filepath_length", NULL);
+
+  RNA_def_property_ui_text(prop,
+                           "Frame File Path",
+                           "Volume file used for loading the volume at the current frame. Empty "
+                           "if the volume has not be loaded or the frame only exists in memory");
+
   /* API */
   FunctionRNA *func;
   PropertyRNA *parm;
@@ -420,11 +437,11 @@ static void rna_def_volume_render(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "step_size", PROP_FLOAT, PROP_DISTANCE);
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-  RNA_def_property_range(prop, 0.00001, FLT_MAX);
-  RNA_def_property_ui_range(prop, 0.001, 100.0, 1, 3);
+  RNA_def_property_range(prop, 0.0, FLT_MAX);
+  RNA_def_property_ui_range(prop, 0.0, 100.0, 1, 3);
   RNA_def_property_ui_text(prop,
                            "Step Size",
-                           "Distance between volume samples. Higher values render more detail at "
+                           "Distance between volume samples. Lower values render more detail at "
                            "the cost of performance. If set to zero, the step size is "
                            "automatically determined based on voxel size");
   RNA_def_property_update(prop, 0, "rna_Volume_update_display");
@@ -452,7 +469,7 @@ static void rna_def_volume(BlenderRNA *brna)
   /* File */
   prop = RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-  RNA_def_property_ui_text(prop, "File Path", "Volume sample file used by this Volume data-block");
+  RNA_def_property_ui_text(prop, "File Path", "Volume file used by this Volume data-block");
   RNA_def_property_update(prop, 0, "rna_Volume_update_filepath");
 
   prop = RNA_def_property(srna, "packed_file", PROP_POINTER, PROP_NONE);

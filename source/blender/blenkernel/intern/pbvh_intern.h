@@ -105,6 +105,9 @@ struct PBVHNode {
   float (*bm_orco)[3];
   int (*bm_ortri)[3];
   int bm_tot_ortri;
+
+  /* Used to store the brush color during a stroke and composite it over the original color */
+  PBVHColorBufferNode color_buffer;
 };
 
 typedef enum {
@@ -138,6 +141,7 @@ struct PBVH {
 
   int face_sets_color_seed;
   int face_sets_color_default;
+  int *face_sets;
 
   /* Grid Data */
   CCGKey gridkey;
@@ -159,6 +163,7 @@ struct PBVH {
   bool deformed;
   bool show_mask;
   bool show_face_sets;
+  bool respect_hide;
 
   /* Dynamic topology */
   BMesh *bm;
@@ -167,7 +172,11 @@ struct PBVH {
   int cd_vert_node_offset;
   int cd_face_node_offset;
 
+  float planes[6][4];
+  int num_planes;
+
   struct BMLog *bm_log;
+  struct SubdivCCG *subdiv_ccg;
 };
 
 /* pbvh.c */

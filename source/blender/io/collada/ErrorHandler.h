@@ -21,10 +21,10 @@
 #ifndef __ERRORHANDLER_H__
 #define __ERRORHANDLER_H__
 
-#include <string>
-#include <map>
-#include <vector>
 #include <algorithm>  // sort()
+#include <map>
+#include <string>
+#include <vector>
 
 #include "COLLADASaxFWLIErrorHandler.h"
 
@@ -46,7 +46,7 @@ class ErrorHandler : public COLLADASaxFWL::IErrorHandler {
   }
 
  private:
-  /** Disable default copy ctor. */
+  /** Disable default copy constructor. */
   ErrorHandler(const ErrorHandler &pre);
   /** Disable default assignment operator. */
   const ErrorHandler &operator=(const ErrorHandler &pre);

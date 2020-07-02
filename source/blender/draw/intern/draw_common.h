@@ -82,8 +82,8 @@ typedef struct GlobalsUboStorage {
 
   float colorBackground[4];
   float colorBackgroundGradient[4];
-  float colorCheckerLow[4];
-  float colorCheckerHigh[4];
+  float colorCheckerPrimary[4];
+  float colorCheckerSecondary[4];
   float colorClippingBorder[4];
   float colorEditMeshMiddle[4];
 
@@ -148,8 +148,9 @@ typedef struct GlobalsUboStorage {
   float sizePixel, pixelFac;
   float sizeObjectCenter, sizeLightCenter, sizeLightCircle, sizeLightCircleShadow;
   float sizeVertex, sizeEdge, sizeEdgeFix, sizeFaceDot;
+  float sizeChecker;
 
-  float pad_globalsBlock[2];
+  float pad_globalsBlock;
 } GlobalsUboStorage;
 /* Keep in sync with globalsBlock in shaders */
 BLI_STATIC_ASSERT_ALIGN(GlobalsUboStorage, 16)
@@ -171,22 +172,17 @@ bool DRW_object_axis_orthogonal_to_view(Object *ob, int axis);
 
 /* This creates a shading group with display hairs.
  * The draw call is already added by this function, just add additional uniforms. */
-struct DRWShadingGroup *DRW_shgroup_hair_create(struct Object *object,
-                                                struct ParticleSystem *psys,
-                                                struct ModifierData *md,
-                                                struct DRWPass *hair_pass,
-                                                struct GPUShader *shader);
-
 struct DRWShadingGroup *DRW_shgroup_hair_create_sub(struct Object *object,
                                                     struct ParticleSystem *psys,
                                                     struct ModifierData *md,
                                                     struct DRWShadingGroup *shgrp);
-
-struct DRWShadingGroup *DRW_shgroup_material_hair_create(struct Object *object,
-                                                         struct ParticleSystem *psys,
-                                                         struct ModifierData *md,
-                                                         struct DRWPass *hair_pass,
-                                                         struct GPUMaterial *material);
+struct GPUVertBuf *DRW_hair_pos_buffer_get(struct Object *object,
+                                           struct ParticleSystem *psys,
+                                           struct ModifierData *md);
+void DRW_hair_duplimat_get(struct Object *object,
+                           struct ParticleSystem *psys,
+                           struct ModifierData *md,
+                           float (*dupli_mat)[4]);
 
 void DRW_hair_init(void);
 void DRW_hair_update(void);

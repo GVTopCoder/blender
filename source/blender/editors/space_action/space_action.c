@@ -21,8 +21,8 @@
  * \ingroup spaction
  */
 
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "DNA_action_types.h"
 #include "DNA_collection_types.h"
@@ -42,25 +42,25 @@
 #include "RNA_enum_types.h"
 
 #include "WM_api.h"
-#include "WM_types.h"
 #include "WM_message.h"
+#include "WM_types.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
-#include "ED_space_api.h"
-#include "ED_screen.h"
 #include "ED_anim_api.h"
 #include "ED_markers.h"
+#include "ED_screen.h"
+#include "ED_space_api.h"
 #include "ED_time_scrub_ui.h"
 
-#include "action_intern.h" /* own include */
 #include "GPU_framebuffer.h"
+#include "action_intern.h" /* own include */
 
 /* ******************** default callbacks for action space ***************** */
 
-static SpaceLink *action_new(const ScrArea *sa, const Scene *scene)
+static SpaceLink *action_new(const ScrArea *area, const Scene *scene)
 {
   SpaceAction *saction;
   ARegion *region;
@@ -113,7 +113,7 @@ static SpaceLink *action_new(const ScrArea *sa, const Scene *scene)
   region->regiontype = RGN_TYPE_WINDOW;
 
   region->v2d.tot.xmin = (float)(SFRA - 10);
-  region->v2d.tot.ymin = (float)(-sa->winy) / 3.0f;
+  region->v2d.tot.ymin = (float)(-area->winy) / 3.0f;
   region->v2d.tot.xmax = (float)(EFRA + 10);
   region->v2d.tot.ymax = 0.0f;
 
@@ -128,7 +128,7 @@ static SpaceLink *action_new(const ScrArea *sa, const Scene *scene)
   region->v2d.minzoom = 0.01f;
   region->v2d.maxzoom = 50;
   region->v2d.scroll = (V2D_SCROLL_BOTTOM | V2D_SCROLL_HORIZONTAL_HANDLES);
-  region->v2d.scroll |= (V2D_SCROLL_RIGHT);
+  region->v2d.scroll |= V2D_SCROLL_RIGHT;
   region->v2d.keepzoom = V2D_LOCKZOOM_Y;
   region->v2d.keepofs = V2D_KEEPOFS_Y;
   region->v2d.align = V2D_ALIGN_NO_POS_Y;
@@ -144,9 +144,9 @@ static void action_free(SpaceLink *UNUSED(sl))
 }
 
 /* spacetype; init callback */
-static void action_init(struct wmWindowManager *UNUSED(wm), ScrArea *sa)
+static void action_init(struct wmWindowManager *UNUSED(wm), ScrArea *area)
 {
-  SpaceAction *saction = sa->spacedata.first;
+  SpaceAction *saction = area->spacedata.first;
   saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
 }
 
@@ -181,9 +181,13 @@ static void action_main_region_draw(const bContext *C, ARegion *region)
   Object *obact = CTX_data_active_object(C);
   bAnimContext ac;
   View2D *v2d = &region->v2d;
-  View2DScrollers *scrollers;
   short marker_flag = 0;
   short cfra_flag = 0;
+
+  UI_view2d_view_ortho(v2d);
+  if (saction->flag & SACTION_DRAWTIME) {
+    cfra_flag |= DRAWCFRA_UNIT_SECONDS;
+  }
 
   /* clear and setup matrix */
   UI_ThemeClearColor(TH_BACK);
@@ -203,12 +207,6 @@ static void action_main_region_draw(const bContext *C, ARegion *region)
   if (ANIM_animdata_get_context(C, &ac)) {
     draw_channel_strips(&ac, saction, region);
   }
-
-  /* current frame */
-  if (saction->flag & SACTION_DRAWTIME) {
-    cfra_flag |= DRAWCFRA_UNIT_SECONDS;
-  }
-  ANIM_draw_cfra(C, v2d, cfra_flag);
 
   /* markers */
   UI_view2d_view_orthoSpecial(region, v2d, 1);
@@ -238,11 +236,20 @@ static void action_main_region_draw(const bContext *C, ARegion *region)
 
   /* scrubbing region */
   ED_time_scrub_draw(region, scene, saction->flag & SACTION_DRAWTIME, true);
+}
+
+static void action_main_region_draw_overlay(const bContext *C, ARegion *region)
+{
+  /* draw entirely, view changes should be handled here */
+  const SpaceAction *saction = CTX_wm_space_action(C);
+  const Scene *scene = CTX_data_scene(C);
+  View2D *v2d = &region->v2d;
+
+  /* scrubbing region */
+  ED_time_scrub_draw_current_frame(region, scene, saction->flag & SACTION_DRAWTIME, true);
 
   /* scrollers */
-  scrollers = UI_view2d_scrollers_calc(v2d, NULL);
-  UI_view2d_scrollers_draw(v2d, scrollers);
-  UI_view2d_scrollers_free(scrollers);
+  UI_view2d_scrollers_draw(v2d, NULL);
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
@@ -301,7 +308,7 @@ static void action_header_region_draw(const bContext *C, ARegion *region)
 }
 
 static void action_channel_region_listener(wmWindow *UNUSED(win),
-                                           ScrArea *UNUSED(sa),
+                                           ScrArea *UNUSED(area),
                                            ARegion *region,
                                            wmNotifier *wmn,
                                            const Scene *UNUSED(scene))
@@ -355,12 +362,12 @@ static void saction_channel_region_message_subscribe(const struct bContext *UNUS
                                                      struct WorkSpace *UNUSED(workspace),
                                                      struct Scene *UNUSED(scene),
                                                      struct bScreen *screen,
-                                                     struct ScrArea *sa,
+                                                     struct ScrArea *area,
                                                      struct ARegion *region,
                                                      struct wmMsgBus *mbus)
 {
   PointerRNA ptr;
-  RNA_pointer_create(&screen->id, &RNA_SpaceDopeSheetEditor, sa->spacedata.first, &ptr);
+  RNA_pointer_create(&screen->id, &RNA_SpaceDopeSheetEditor, area->spacedata.first, &ptr);
 
   wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
       .owner = region,
@@ -397,7 +404,7 @@ static void saction_channel_region_message_subscribe(const struct bContext *UNUS
 }
 
 static void action_main_region_listener(wmWindow *UNUSED(win),
-                                        ScrArea *UNUSED(sa),
+                                        ScrArea *UNUSED(area),
                                         ARegion *region,
                                         wmNotifier *wmn,
                                         const Scene *UNUSED(scene))
@@ -459,12 +466,12 @@ static void saction_main_region_message_subscribe(const struct bContext *C,
                                                   struct WorkSpace *workspace,
                                                   struct Scene *scene,
                                                   struct bScreen *screen,
-                                                  struct ScrArea *sa,
+                                                  struct ScrArea *area,
                                                   struct ARegion *region,
                                                   struct wmMsgBus *mbus)
 {
   PointerRNA ptr;
-  RNA_pointer_create(&screen->id, &RNA_SpaceDopeSheetEditor, sa->spacedata.first, &ptr);
+  RNA_pointer_create(&screen->id, &RNA_SpaceDopeSheetEditor, area->spacedata.first, &ptr);
 
   wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
       .owner = region,
@@ -497,16 +504,16 @@ static void saction_main_region_message_subscribe(const struct bContext *C,
   }
 
   /* Now run the general "channels region" one - since channels and main should be in sync */
-  saction_channel_region_message_subscribe(C, workspace, scene, screen, sa, region, mbus);
+  saction_channel_region_message_subscribe(C, workspace, scene, screen, area, region, mbus);
 }
 
 /* editor level listener */
 static void action_listener(wmWindow *UNUSED(win),
-                            ScrArea *sa,
+                            ScrArea *area,
                             wmNotifier *wmn,
                             Scene *UNUSED(scene))
 {
-  SpaceAction *saction = (SpaceAction *)sa->spacedata.first;
+  SpaceAction *saction = (SpaceAction *)area->spacedata.first;
 
   /* context changes */
   switch (wmn->category) {
@@ -514,11 +521,11 @@ static void action_listener(wmWindow *UNUSED(win),
       /* only handle these events in GPencil mode for performance considerations */
       if (saction->mode == SACTCONT_GPENCIL) {
         if (wmn->action == NA_EDITED) {
-          ED_area_tag_redraw(sa);
+          ED_area_tag_redraw(area);
         }
         else if (wmn->action == NA_SELECTED) {
           saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-          ED_area_tag_refresh(sa);
+          ED_area_tag_refresh(area);
         }
       }
       break;
@@ -526,7 +533,7 @@ static void action_listener(wmWindow *UNUSED(win),
       /* for NLA tweakmode enter/exit, need complete refresh */
       if (wmn->data == ND_NLA_ACTCHANGE) {
         saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-        ED_area_tag_refresh(sa);
+        ED_area_tag_refresh(area);
       }
       /* autocolor only really needs to change when channels are added/removed,
        * or previously hidden stuff appears
@@ -534,14 +541,14 @@ static void action_listener(wmWindow *UNUSED(win),
        */
       else if (((wmn->data == ND_KEYFRAME) && ELEM(wmn->action, NA_ADDED, NA_REMOVED)) ||
                ((wmn->data == ND_ANIMCHAN) && (wmn->action != NA_SELECTED))) {
-        ED_area_tag_refresh(sa);
+        ED_area_tag_refresh(area);
       }
       /* for simple edits to the curve data though (or just plain selections),
        * a simple redraw should work
        * (see T39851 for an example of how this can go wrong)
        */
       else {
-        ED_area_tag_redraw(sa);
+        ED_area_tag_redraw(area);
       }
       break;
     case NC_SCENE:
@@ -549,7 +556,7 @@ static void action_listener(wmWindow *UNUSED(win),
         case ND_SEQUENCER:
           if (wmn->action == NA_SELECTED) {
             saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-            ED_area_tag_refresh(sa);
+            ED_area_tag_refresh(area);
           }
           break;
         case ND_OB_ACTIVE:
@@ -557,13 +564,13 @@ static void action_listener(wmWindow *UNUSED(win),
           /* Selection changed, so force refresh to flush
            * (needs flag set to do syncing). */
           saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-          ED_area_tag_refresh(sa);
+          ED_area_tag_refresh(area);
           break;
         case ND_RENDER_RESULT:
-          ED_area_tag_redraw(sa);
+          ED_area_tag_redraw(area);
           break;
         case ND_FRAME_RANGE:
-          for (ARegion *region = sa->regionbase.first; region; region = region->next) {
+          LISTBASE_FOREACH (ARegion *, region, &area->regionbase) {
             if (region->regiontype == RGN_TYPE_WINDOW) {
               Scene *scene = wmn->reference;
               region->v2d.tot.xmin = (float)(SFRA - 4);
@@ -575,7 +582,7 @@ static void action_listener(wmWindow *UNUSED(win),
         default:
           if (saction->mode != SACTCONT_TIMELINE) {
             /* Just redrawing the view will do. */
-            ED_area_tag_redraw(sa);
+            ED_area_tag_redraw(area);
           }
           break;
       }
@@ -586,7 +593,7 @@ static void action_listener(wmWindow *UNUSED(win),
                               * (needs flag set to do syncing). */
         case ND_BONE_ACTIVE:
           saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-          ED_area_tag_refresh(sa);
+          ED_area_tag_refresh(area);
           break;
         case ND_TRANSFORM:
           /* moving object shouldn't need to redraw action */
@@ -596,12 +603,12 @@ static void action_listener(wmWindow *UNUSED(win),
         case ND_PARTICLE:
           /* only needed in timeline mode */
           if (saction->mode == SACTCONT_TIMELINE) {
-            ED_area_tag_refresh(sa);
-            ED_area_tag_redraw(sa);
+            ED_area_tag_refresh(area);
+            ED_area_tag_redraw(area);
           }
           break;
         default: /* just redrawing the view will do */
-          ED_area_tag_redraw(sa);
+          ED_area_tag_redraw(area);
           break;
       }
       break;
@@ -609,11 +616,11 @@ static void action_listener(wmWindow *UNUSED(win),
       if (saction->mode == SACTCONT_MASK) {
         switch (wmn->data) {
           case ND_DATA:
-            ED_area_tag_refresh(sa);
-            ED_area_tag_redraw(sa);
+            ED_area_tag_refresh(area);
+            ED_area_tag_redraw(area);
             break;
           default: /* just redrawing the view will do */
-            ED_area_tag_redraw(sa);
+            ED_area_tag_redraw(area);
             break;
         }
       }
@@ -622,33 +629,33 @@ static void action_listener(wmWindow *UNUSED(win),
       if (wmn->action == NA_SELECTED) {
         /* selection changed, so force refresh to flush (needs flag set to do syncing) */
         saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-        ED_area_tag_refresh(sa);
+        ED_area_tag_refresh(area);
       }
       break;
     case NC_SPACE:
       switch (wmn->data) {
         case ND_SPACE_DOPESHEET:
-          ED_area_tag_redraw(sa);
+          ED_area_tag_redraw(area);
           break;
         case ND_SPACE_TIME:
-          ED_area_tag_redraw(sa);
+          ED_area_tag_redraw(area);
           break;
         case ND_SPACE_CHANGED:
           saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
-          ED_area_tag_refresh(sa);
+          ED_area_tag_refresh(area);
           break;
       }
       break;
     case NC_WINDOW:
       if (saction->runtime.flag & SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC) {
         /* force redraw/refresh after undo/redo - [#28962] */
-        ED_area_tag_refresh(sa);
+        ED_area_tag_refresh(area);
       }
       break;
     case NC_WM:
       switch (wmn->data) {
         case ND_FILEREAD:
-          ED_area_tag_refresh(sa);
+          ED_area_tag_refresh(area);
           break;
       }
       break;
@@ -656,12 +663,12 @@ static void action_listener(wmWindow *UNUSED(win),
 }
 
 static void action_header_region_listener(wmWindow *UNUSED(win),
-                                          ScrArea *sa,
+                                          ScrArea *area,
                                           ARegion *region,
                                           wmNotifier *wmn,
                                           const Scene *UNUSED(scene))
 {
-  SpaceAction *saction = (SpaceAction *)sa->spacedata.first;
+  SpaceAction *saction = (SpaceAction *)area->spacedata.first;
 
   /* context changes */
   switch (wmn->category) {
@@ -733,7 +740,7 @@ static void action_buttons_area_draw(const bContext *C, ARegion *region)
 }
 
 static void action_region_listener(wmWindow *UNUSED(win),
-                                   ScrArea *UNUSED(sa),
+                                   ScrArea *UNUSED(area),
                                    ARegion *region,
                                    wmNotifier *wmn,
                                    const Scene *UNUSED(scene))
@@ -769,9 +776,9 @@ static void action_region_listener(wmWindow *UNUSED(win),
   }
 }
 
-static void action_refresh(const bContext *C, ScrArea *sa)
+static void action_refresh(const bContext *C, ScrArea *area)
 {
-  SpaceAction *saction = (SpaceAction *)sa->spacedata.first;
+  SpaceAction *saction = (SpaceAction *)area->spacedata.first;
 
   /* Update the state of the animchannels in response to changes from the data they represent
    * NOTE: the temp flag is used to indicate when this needs to be done,
@@ -789,8 +796,8 @@ static void action_refresh(const bContext *C, ScrArea *sa)
      * - Regions (such as header) need to be manually tagged for redraw too
      *   or else they don't update [#28962]
      */
-    ED_area_tag_redraw(sa);
-    for (region = sa->regionbase.first; region; region = region->next) {
+    ED_area_tag_redraw(area);
+    for (region = area->regionbase.first; region; region = region->next) {
       ED_region_tag_redraw(region);
     }
   }
@@ -799,7 +806,7 @@ static void action_refresh(const bContext *C, ScrArea *sa)
   // XXX re-sizing y-extents of tot should go here?
 }
 
-static void action_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID *new_id)
+static void action_id_remap(ScrArea *UNUSED(area), SpaceLink *slink, ID *old_id, ID *new_id)
 {
   SpaceAction *sact = (SpaceAction *)slink;
 
@@ -820,15 +827,15 @@ static void action_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, I
  * The previous non-timeline mode is stored so switching back to the
  * dope-sheet doesn't always reset the sub-mode.
  */
-static int action_space_subtype_get(ScrArea *sa)
+static int action_space_subtype_get(ScrArea *area)
 {
-  SpaceAction *sact = sa->spacedata.first;
+  SpaceAction *sact = area->spacedata.first;
   return sact->mode == SACTCONT_TIMELINE ? SACTCONT_TIMELINE : SACTCONT_DOPESHEET;
 }
 
-static void action_space_subtype_set(ScrArea *sa, int value)
+static void action_space_subtype_set(ScrArea *area, int value)
 {
-  SpaceAction *sact = sa->spacedata.first;
+  SpaceAction *sact = area->spacedata.first;
   if (value == SACTCONT_TIMELINE) {
     if (sact->mode != SACTCONT_TIMELINE) {
       sact->mode_prev = sact->mode;
@@ -874,6 +881,7 @@ void ED_spacetype_action(void)
   art->regionid = RGN_TYPE_WINDOW;
   art->init = action_main_region_init;
   art->draw = action_main_region_draw;
+  art->draw_overlay = action_main_region_draw_overlay;
   art->listener = action_main_region_listener;
   art->message_subscribe = saction_main_region_message_subscribe;
   art->keymapflag = ED_KEYMAP_VIEW2D | ED_KEYMAP_ANIMATION | ED_KEYMAP_FRAMES;

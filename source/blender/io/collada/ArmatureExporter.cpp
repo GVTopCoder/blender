@@ -29,18 +29,15 @@
 
 #include "BKE_action.h"
 #include "BKE_armature.h"
-
-extern "C" {
 #include "BKE_global.h"
 #include "BKE_mesh.h"
-}
 
 #include "ED_armature.h"
 
 #include "BLI_listbase.h"
 
-#include "GeometryExporter.h"
 #include "ArmatureExporter.h"
+#include "GeometryExporter.h"
 #include "SceneExporter.h"
 
 // write bone nodes

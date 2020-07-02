@@ -18,22 +18,22 @@
  * \ingroup draw
  */
 
-#include "DNA_scene_types.h"
+#include "DNA_curve_types.h"
 #include "DNA_hair_types.h"
+#include "DNA_lattice_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
-#include "DNA_curve_types.h"
 #include "DNA_modifier_types.h"
-#include "DNA_lattice_types.h"
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_pointcloud_types.h"
+#include "DNA_scene_types.h"
 #include "DNA_volume_types.h"
 
 #include "UI_resources.h"
 
-#include "BLI_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_object.h"
 #include "BKE_paint.h"
@@ -877,6 +877,32 @@ GPUBatch *DRW_cache_object_surface_get(Object *ob)
       return DRW_cache_text_surface_get(ob);
     case OB_MBALL:
       return DRW_cache_mball_surface_get(ob);
+    case OB_HAIR:
+      return NULL;
+    case OB_POINTCLOUD:
+      return NULL;
+    case OB_VOLUME:
+      return NULL;
+    default:
+      return NULL;
+  }
+}
+
+/* Returns the vertbuf used by shaded surface batch. */
+GPUVertBuf *DRW_cache_object_pos_vertbuf_get(Object *ob)
+{
+  Mesh *me = BKE_object_get_evaluated_mesh(ob);
+  short type = (me != NULL) ? OB_MESH : ob->type;
+
+  switch (type) {
+    case OB_MESH:
+      return DRW_mesh_batch_cache_pos_vertbuf_get((me != NULL) ? me : ob->data);
+    case OB_CURVE:
+    case OB_SURF:
+    case OB_FONT:
+      return DRW_curve_batch_cache_pos_vertbuf_get(ob->data);
+    case OB_MBALL:
+      return DRW_mball_batch_cache_pos_vertbuf_get(ob);
     case OB_HAIR:
       return NULL;
     case OB_POINTCLOUD:
@@ -2844,6 +2870,12 @@ GPUBatch *DRW_cache_mesh_surface_vertpaint_get(Object *ob)
   return DRW_mesh_batch_cache_get_surface_vertpaint(ob->data);
 }
 
+GPUBatch *DRW_cache_mesh_surface_sculptcolors_get(Object *ob)
+{
+  BLI_assert(ob->type == OB_MESH);
+  return DRW_mesh_batch_cache_get_surface_sculpt(ob->data);
+}
+
 GPUBatch *DRW_cache_mesh_surface_weights_get(Object *ob)
 {
   BLI_assert(ob->type == OB_MESH);
@@ -2898,12 +2930,12 @@ GPUBatch *DRW_cache_curve_edge_overlay_get(Object *ob)
   return DRW_curve_batch_cache_get_edit_edges(cu);
 }
 
-GPUBatch *DRW_cache_curve_vert_overlay_get(Object *ob, bool handles)
+GPUBatch *DRW_cache_curve_vert_overlay_get(Object *ob)
 {
   BLI_assert(ELEM(ob->type, OB_CURVE, OB_SURF));
 
   struct Curve *cu = ob->data;
-  return DRW_curve_batch_cache_get_edit_verts(cu, handles);
+  return DRW_curve_batch_cache_get_edit_verts(cu);
 }
 
 GPUBatch *DRW_cache_curve_surface_get(Object *ob)
@@ -3081,8 +3113,7 @@ GPUBatch *DRW_cache_text_loose_edges_get(Object *ob)
     return DRW_mesh_batch_cache_get_loose_edges(mesh_eval);
   }
   else {
-    /* TODO */
-    return NULL;
+    return DRW_curve_batch_cache_get_wire_edge(cu);
   }
 }
 
@@ -3535,13 +3566,15 @@ void drw_batch_cache_generate_requested(Object *ob)
   struct Mesh *mesh_eval = BKE_object_get_evaluated_mesh(ob);
   switch (ob->type) {
     case OB_MESH:
-      DRW_mesh_batch_cache_create_requested(ob, (Mesh *)ob->data, scene, is_paint_mode, use_hide);
+      DRW_mesh_batch_cache_create_requested(
+          DST.task_graph, ob, (Mesh *)ob->data, scene, is_paint_mode, use_hide);
       break;
     case OB_CURVE:
     case OB_FONT:
     case OB_SURF:
       if (mesh_eval) {
-        DRW_mesh_batch_cache_create_requested(ob, mesh_eval, scene, is_paint_mode, use_hide);
+        DRW_mesh_batch_cache_create_requested(
+            DST.task_graph, ob, mesh_eval, scene, is_paint_mode, use_hide);
       }
       DRW_curve_batch_cache_create_requested(ob);
       break;
@@ -3549,6 +3582,11 @@ void drw_batch_cache_generate_requested(Object *ob)
     default:
       break;
   }
+}
+
+void drw_batch_cache_generate_requested_delayed(Object *ob)
+{
+  BLI_gset_add(DST.delayed_extraction, ob);
 }
 
 void DRW_batch_cache_free_old(Object *ob, int ctime)

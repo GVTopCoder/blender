@@ -37,8 +37,8 @@
 
 #include "transform.h"
 #include "transform_constraints.h"
-#include "transform_snap.h"
 #include "transform_mode.h"
+#include "transform_snap.h"
 
 /* -------------------------------------------------------------------- */
 /* Transform (EditBone (B-bone) width scaling) */
@@ -132,6 +132,11 @@ static void applyBoneSize(TransInfo *t, const int UNUSED(mval[2]))
 
   if (t->con.applySize) {
     t->con.applySize(t, NULL, NULL, mat);
+    for (i = 0; i < 3; i++) {
+      if (!(t->con.mode & (CON_AXIS0 << i))) {
+        t->values_final[i] = 1.0f;
+      }
+    }
   }
 
   copy_m3_m3(t->mat, mat);  // used in gizmo
@@ -141,10 +146,6 @@ static void applyBoneSize(TransInfo *t, const int UNUSED(mval[2]))
   FOREACH_TRANS_DATA_CONTAINER (t, tc) {
     TransData *td = tc->data;
     for (i = 0; i < tc->data_len; i++, td++) {
-      if (td->flag & TD_NOACTION) {
-        break;
-      }
-
       if (td->flag & TD_SKIP) {
         continue;
       }
@@ -155,7 +156,7 @@ static void applyBoneSize(TransInfo *t, const int UNUSED(mval[2]))
 
   recalcData(t);
 
-  ED_area_status_text(t->sa, str);
+  ED_area_status_text(t->area, str);
 }
 
 void initBoneSize(TransInfo *t)

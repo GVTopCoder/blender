@@ -32,10 +32,10 @@
 #include "BKE_armature.h"
 #include "BKE_constraint.h"
 
-#include "DNA_object_types.h"
 #include "DNA_action_types.h"
-#include "DNA_constraint_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_constraint_types.h"
+#include "DNA_object_types.h"
 
 #include "IK_solver.h"
 #include "iksolver_plugin.h"
@@ -654,7 +654,7 @@ void iksolver_release_tree(struct Scene *UNUSED(scene), struct Object *ob, float
 
 void iksolver_clear_data(bPose *pose)
 {
-  for (bPoseChannel *pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
+  LISTBASE_FOREACH (bPoseChannel *, pchan, &pose->chanbase) {
     if ((pchan->flag & POSE_IKTREE) == 0) {
       continue;
     }

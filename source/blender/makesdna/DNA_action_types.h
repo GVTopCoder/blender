@@ -28,15 +28,15 @@
 #ifndef __DNA_ACTION_TYPES_H__
 #define __DNA_ACTION_TYPES_H__
 
+#include "DNA_ID.h"
+#include "DNA_listBase.h"
+#include "DNA_userdef_types.h" /* ThemeWireColor */
+#include "DNA_vec_types.h"
+#include "DNA_view2d_types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "DNA_listBase.h"
-#include "DNA_ID.h"
-#include "DNA_view2d_types.h"
-#include "DNA_vec_types.h"
-#include "DNA_userdef_types.h" /* ThemeWireColor */
 
 struct Collection;
 struct GHash;
@@ -703,8 +703,9 @@ typedef struct bDopeSheet {
   /** String to search for in displayed names of F-Curves, or NlaTracks/GP Layers/etc. */
   char searchstr[64];
 
-  /** Flags to use for filtering data. */
+  /** Flags to use for filtering data #eAnimFilter_Flags. */
   int filterflag;
+  /** #eDopeSheet_FilterFlag2 */
   int filterflag2;
   /** Standard flags. */
   int flag;

@@ -20,13 +20,13 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BLI_bitmap.h"
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
-#include "BLI_bitmap.h"
 
+#include "DNA_brush_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
-#include "DNA_brush_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
@@ -35,6 +35,7 @@
 #include "RNA_enum_types.h"
 
 #include "BKE_brush.h"
+#include "BKE_colortools.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_mesh.h"
@@ -44,7 +45,6 @@
 #include "BKE_object_deform.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
-#include "BKE_colortools.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -108,7 +108,7 @@ static bool weight_from_bones_poll(bContext *C)
 {
   Object *ob = CTX_data_active_object(C);
 
-  return (ob && (ob->mode & OB_MODE_WEIGHT_PAINT) && modifiers_isDeformedByArmature(ob));
+  return (ob && (ob->mode & OB_MODE_WEIGHT_PAINT) && BKE_modifiers_is_deformed_by_armature(ob));
 }
 
 static int weight_from_bones_exec(bContext *C, wmOperator *op)
@@ -116,7 +116,7 @@ static int weight_from_bones_exec(bContext *C, wmOperator *op)
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Scene *scene = CTX_data_scene(C);
   Object *ob = CTX_data_active_object(C);
-  Object *armob = modifiers_isDeformedByArmature(ob);
+  Object *armob = BKE_modifiers_is_deformed_by_armature(ob);
   Mesh *me = ob->data;
   int type = RNA_enum_get(op->ptr, "type");
 

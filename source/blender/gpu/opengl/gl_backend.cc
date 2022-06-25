@@ -308,7 +308,7 @@ static void detect_workarounds()
    * still be broken. */
   if (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_MAC, GPU_DRIVER_OFFICIAL)) {
     if (strstr(renderer, "AMD Radeon Pro") || strstr(renderer, "AMD Radeon R9") ||
-        strstr(renderer, "AMD Radeon RX")) {
+	strstr(renderer, "AMD Radeon RX") || strstr(renderer, "AMD Radeon Polaris")) {
       GCaps.depth_blitting_workaround = true;
     }
   }
